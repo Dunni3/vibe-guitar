@@ -1,0 +1,10 @@
+{
+  "format": 1,
+  "name": "Long echo",
+  "description": "Dotted-eighth-ish repeats at about 100 bpm with a long decaying tail.",
+  "buffer_size": 128,
+  "chain": [
+    {"effect": "gain", "params": {"gain_db": -3}},
+    {"effect": "delay", "params": {"time_ms": 450, "feedback": 55, "mix": 35}}
+  ]
+}

@@ -1,0 +1,8 @@
+research_notes/
+build/
+test_audio/
+profiles/
+.venv/
+__pycache__/
+*.pyc
+.DS_Store

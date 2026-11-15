@@ -1,0 +1,9 @@
+{
+  "format": 1,
+  "name": "Clean",
+  "description": "Straight through, unity gain. Use for gain staging and latency tests.",
+  "buffer_size": 128,
+  "chain": [
+    {"effect": "gain", "params": {"gain_db": 0}}
+  ]
+}

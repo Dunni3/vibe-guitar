@@ -1,0 +1,10 @@
+{
+  "format": 1,
+  "name": "Slapback",
+  "description": "Short single echo, slightly trimmed so the echo doesn't push the amp.",
+  "buffer_size": 128,
+  "chain": [
+    {"effect": "gain", "params": {"gain_db": -2}},
+    {"effect": "delay", "params": {"time_ms": 110, "feedback": 10, "mix": 30}}
+  ]
+}
