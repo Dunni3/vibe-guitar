@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Guitar FX Box Shopping List</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@600;800&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+/* Layout idea: a parts list / bill of materials. One column, grouped rows with a check-off box,
+   a running total pinned at the top. Same palette as the latency notes: amber = signal path. */
+:root {
+  --bg: #eef0f3;
+  --panel: #ffffff;
+  --ink: #1a2130;
+  --mute: #5a6375;
+  --rule: #d6dbe3;
+  --signal: #c25e00;
+  --control: #0b7c84;
+  --good: #2f8a49;
+  --bad: #c62f2f;
+  --display: "Archivo", "Helvetica Neue", Arial, sans-serif;
+  --body: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, Menlo, monospace;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #10141b; --panel: #171d27; --ink: #e6e9ef; --mute: #98a1b3; --rule: #2a3242;
+    --signal: #f29b38; --control: #42c3cb; --good: #6cc784; --bad: #ff6b6b; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #10141b; --panel: #171d27; --ink: #e6e9ef; --mute: #98a1b3; --rule: #2a3242;
+  --signal: #f29b38; --control: #42c3cb; --good: #6cc784; --bad: #ff6b6b; color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body { background: var(--bg); color: var(--ink); font: 16px/1.55 var(--body); -webkit-font-smoothing: antialiased; }
+main { max-width: 860px; margin: 0 auto; padding: 44px 24px 72px; display: grid; gap: 40px; }
+@media (max-width: 520px) { main { padding: 26px 16px 56px; gap: 32px; } }
+h1, h2 { font-family: var(--display); margin: 0; text-wrap: balance; letter-spacing: -0.01em; }
+h1 { font-size: clamp(32px, 5.5vw, 46px); font-weight: 800; line-height: 1.05; }
+h2 { font-size: 22px; font-weight: 800; }
+p { margin: 0; max-width: 66ch; }
+.kicker { font: 500 13px var(--mono); color: var(--mute); text-transform: uppercase; letter-spacing: .08em; }
+.mono { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+header { display: grid; gap: 14px; }
+.badge {
+  display: inline-flex; align-items: center; gap: 8px; width: fit-content;
+  font: 600 14px var(--body); color: var(--good);
+  border: 1.5px solid var(--good); border-radius: 999px; padding: 5px 12px;
+}
+.badge svg { width: 16px; height: 16px; }
+
+.summary {
+  position: sticky; top: 0; z-index: 2;
+  background: var(--panel); border: 1px solid var(--rule); border-radius: 12px;
+  padding: 14px 18px; display: flex; flex-wrap: wrap; gap: 10px 28px; align-items: baseline;
+  box-shadow: 0 6px 18px -14px rgba(0,0,0,.35);
+}
+.summary .total { font: 500 26px var(--mono); }
+.summary .lbl { font-size: 13px; color: var(--mute); }
+.summary .stat { display: grid; }
+.summary .note { font-size: 13px; color: var(--mute); flex-basis: 100%; }
+
+section { display: grid; gap: 12px; }
+.sec-head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+.sec-head p { font-size: 14px; color: var(--mute); }
+.list { background: var(--panel); border: 1px solid var(--rule); border-radius: 12px; overflow: hidden; }
+.item {
+  display: grid; grid-template-columns: 26px 1fr auto; gap: 4px 14px; padding: 16px 18px;
+  border-top: 1px solid var(--rule); align-items: start;
+}
+.item:first-child { border-top: 0; }
+.item input { width: 18px; height: 18px; margin: 3px 0 0; accent-color: var(--signal); cursor: pointer; }
+.item .name { font-weight: 600; }
+.item .name label { cursor: pointer; }
+.item .price { font: 500 15px var(--mono); text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.item .why { grid-column: 2 / 4; font-size: 14px; color: var(--mute); max-width: 70ch; }
+.item .why a { color: var(--control); }
+.item .tags { grid-column: 2 / 4; display: flex; flex-wrap: wrap; gap: 6px; margin-top: 2px; }
+.tag { font: 500 12px var(--mono); border: 1px solid var(--rule); border-radius: 6px; padding: 1px 7px; color: var(--mute); }
+.tag.key { color: var(--signal); border-color: var(--signal); }
+.item.bought .name, .item.bought .price { text-decoration: line-through; color: var(--mute); }
+.item.optional { background: color-mix(in srgb, var(--bg) 45%, var(--panel)); }
+
+.choice { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; font-size: 14px; color: var(--mute); }
+.seg { display: inline-flex; border: 1px solid var(--rule); border-radius: 8px; overflow: hidden; }
+.seg button { font: 500 13px var(--body); color: var(--ink); background: var(--panel); border: 0; border-right: 1px solid var(--rule); padding: 7px 12px; cursor: pointer; }
+.seg button:last-child { border-right: 0; }
+.seg button[aria-pressed="true"] { background: var(--ink); color: var(--panel); }
+button:focus-visible, input:focus-visible, a:focus-visible { outline: 2px solid var(--control); outline-offset: 2px; }
+
+.chain {
+  background: var(--panel); border: 1px solid var(--rule); border-radius: 12px; padding: 18px;
+  display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font-size: 14px;
+}
+.node { border: 1.5px solid var(--rule); border-radius: 8px; padding: 6px 10px; background: var(--bg); white-space: nowrap; }
+.node.buy { border-color: var(--signal); }
+.node.opt { border-style: dashed; border-color: var(--signal); }
+.arrow { color: var(--mute); }
+
+ol.steps { margin: 0; padding: 0; list-style: none; counter-reset: s; display: grid; gap: 10px; }
+ol.steps li {
+  counter-increment: s; background: var(--panel); border: 1px solid var(--rule); border-radius: 10px;
+  padding: 12px 16px 12px 52px; position: relative; font-size: 15px;
+}
+ol.steps li::before {
+  content: counter(s); position: absolute; left: 16px; top: 11px; width: 24px; height: 24px; border-radius: 50%;
+  background: var(--ink); color: var(--panel); font: 500 13px/24px var(--mono); text-align: center;
+}
+ol.steps b { font-weight: 600; }
+.skip { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 10px; }
+.skip div { border: 1px dashed var(--rule); border-radius: 10px; padding: 12px 14px; font-size: 14px; color: var(--mute); }
+.skip b { color: var(--ink); display: block; font-weight: 600; margin-bottom: 2px; }
+footer { font-size: 13px; color: var(--mute); max-width: 80ch; }
+footer a { color: var(--control); }
+@media (prefers-reduced-motion: no-preference) { .item { transition: background .2s; } }
+</style>
+</head>
+<body>
+<main>
+
+<header>
+  <div class="kicker">Guitar FX box · parts list</div>
+  <h1>What to buy for the Pi 5 + Pisound box</h1>
+  <p>Everything here plugs, clips or screws together. The only tool you need is a small Phillips screwdriver. Tick items off as you order them; the total at the top updates.</p>
+  <span class="badge"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 8.5l3.2 3L13 4.5"/></svg>No soldering required</span>
+</header>
+
+<div class="summary" aria-live="polite">
+  <div class="stat"><span class="lbl">Estimated total</span><span class="total" id="total">$0</span></div>
+  <div class="stat"><span class="lbl">Still to order</span><span class="mono" id="left">$0</span></div>
+  <div class="stat"><span class="lbl">Items</span><span class="mono" id="count">0 of 0 ticked</span></div>
+  <span class="note">Prices are rough US figures as of November 2026. Raspberry Pi prices have risen several times this year because of memory costs, so check before you buy. Pisound ships from Lithuania; shipping and import fees aren't included.</span>
+</div>
+
+<section>
+  <div class="sec-head"><h2>The signal chain</h2></div>
+  <div class="chain" aria-label="Signal chain">
+    <span class="node">Your acoustic</span><span class="arrow">→</span>
+    <span class="node opt">Preamp / DI pedal (only if passive pickup)</span><span class="arrow">→</span>
+    <span class="node buy">Pisound on Pi 5</span><span class="arrow">→</span>
+    <span class="node">Your amp</span>
+    <span class="arrow" style="flex-basis:100%"></span>
+    <span class="node" style="border-color:var(--control)">Phone / laptop browser</span><span class="arrow">⇢ Wi-Fi ⇢</span><span class="node buy">Pi 5 web app</span>
+  </div>
+</section>
+
+<section>
+  <div class="sec-head">
+    <h2>1 · The box</h2>
+    <div class="choice"><span>Pi 5 memory</span>
+      <div class="seg" id="ram" role="group" aria-label="Raspberry Pi 5 memory size">
+        <button type="button" data-ram="2" aria-pressed="false">2 GB</button>
+        <button type="button" data-ram="4" aria-pressed="true">4 GB</button>
+      </div>
+    </div>
+  </div>
+  <div class="list" id="core"></div>
+</section>
+
+<section>
+  <div class="sec-head">
+    <h2>2 · Only if your pickup is passive</h2>
+    <p>Look for a battery compartment, or volume/EQ knobs on the guitar's side. If you find either, you already have a preamp: skip this.</p>
+  </div>
+  <div class="list" id="pre"></div>
+</section>
+
+<section>
+  <div class="sec-head"><h2>3 · Cables</h2><p>Skip any you already own.</p></div>
+  <div class="list" id="cables"></div>
+</section>
+
+<section>
+  <div class="sec-head"><h2>Designing new sounds: nothing extra to buy</h2><p>It's all software on the hardware above.</p></div>
+  <ol class="steps">
+    <li><b>Write or generate an effect</b> on your laptop or on the Pi over SSH, in C++ or Faust, by hand or with an AI coding tool.</li>
+    <li><b>Build and benchmark it on the Pi.</b> The profiling harness renders test recordings through it and reports the smallest buffer it can run at safely.</li>
+    <li><b>Save it as a preset</b> with its settings and buffer size, so the web app can list it.</li>
+    <li><b>Switch to it from your phone</b> between songs. Loading can take a second; that's fine, because nothing changes while you're playing.</li>
+  </ol>
+</section>
+
+<section>
+  <div class="sec-head"><h2>Putting it together</h2></div>
+  <ol class="steps">
+    <li><b>Flash the SD card</b> on your laptop with Raspberry Pi Imager. Set the Wi-Fi network, a username and SSH in the Imager's settings so the Pi never needs a screen or keyboard.</li>
+    <li><b>Stick on the Active Cooler.</b> Peel the thermal pads, line up the two push-pins with the holes by the chip, press until they click, and plug its little cable into the fan socket.</li>
+    <li><b>Mount the Pi on the case base</b> using the standoffs that come with the Pisound case.</li>
+    <li><b>Press the Pisound onto the 40-pin header</b> and screw it to the tall standoffs. It doesn't have to sit flush against the plastic of the header; the standoffs set the height.</li>
+    <li><b>Close the case</b>, insert the SD card, plug in the 27 W supply, and SSH in from your laptop.</li>
+    <li><b>First sound:</b> guitar (via preamp, if you have one) into the Pisound input, Pisound output into the amp, and run a simple pass-through to check levels with the Pisound's gain knob.</li>
+  </ol>
+</section>
+
+<section>
+  <div class="sec-head"><h2>Don't buy these</h2></div>
+  <div class="skip">
+    <div><b>A USB audio interface</b>The Pisound replaces it and avoids the extra USB buffering.</div>
+    <div><b>HiFiBerry DAC+ ADC</b>Its input is built for mics and line level; guitar sounds muffled through it.</div>
+    <div><b>Soldering iron or GPIO header kits</b>The Pisound comes assembled, and the case includes the standoffs.</div>
+    <div><b>A Pisound older than v1.2</b>Earlier versions have taller jacks that hit the Pi 5's cooler. New stock is v1.2; double-check if buying used.</div>
+    <div><b>Monitor, keyboard, micro-HDMI cable</b>You'll run it headless and talk to it over Wi-Fi.</div>
+    <div><b>A big neural amp model setup</b>Not needed for acoustic tones, and the one workload that could strain a Pi core.</div>
+  </div>
+</section>
+
+<footer>Sources for compatibility notes: <a href="https://blokas.io/pisound/">Blokas Pisound page</a> (no soldering required) and the <a href="https://community.blokas.io/t/pisound-pi-5-whats-the-latest-on-enclosures-and-cooling/5827">Blokas forum thread on Pi 5 enclosures and cooling</a> (v1.2 + Active Cooler + acrylic case fit together). Price figures come from Raspberry Pi's 2026 price updates and Blokas's own listing.</footer>
+</main>
+
+<script>
+(() => {
+  const ITEMS = {
+    core: [
+      { id: 'pi', name: 'Raspberry Pi 5', price: { 2: 77.5, 4: 110 }, tags: ['the computer', 'key'],
+        why: 'Pick 4 GB since you\'ll be designing your own sounds: compiling new effects and running dev tools on the box is much more comfortable with the extra memory. 2 GB is enough if the box only plays presets you build on your laptop. Buy from an official reseller.' },
+      { id: 'pisound', name: 'Blokas Pisound (v1.2)', price: 125, tags: ['audio in/out', 'key'],
+        why: 'Listed at €109. Converters, ¼" jacks, a gain knob and a volume knob on one board that presses onto the Pi\'s pins. Version 1.2 has low-profile jacks that clear the Pi 5\'s cooler. <a href="https://blokas.io/pisound/">blokas.io/pisound</a>' },
+      { id: 'case', name: 'Pisound Acrylic Case', price: 18, tags: ['enclosure'],
+        why: 'Listed at €16. Fits Pi 5 + Active Cooler + Pisound v1.2 and comes with the standoffs and screws. Order it with the Pisound to share shipping.' },
+      { id: 'cooler', name: 'Raspberry Pi Active Cooler', price: 5, tags: ['prevents throttling'],
+        why: 'Keeps the CPU from slowing down mid-song, which would cause clicks. Clips on with two push-pins.' },
+      { id: 'psu', name: 'Raspberry Pi 27 W USB-C power supply', price: 13, tags: ['power'],
+        why: 'The official supply. Phone chargers often can\'t deliver the 5 V / 5 A the Pi 5 wants and cause random instability.' },
+      { id: 'sd', name: 'microSD card, 32–64 GB, A2 rated', price: 18, tags: ['storage'],
+        why: 'Holds the OS, your effects and presets. A2-rated cards (SanDisk Extreme or Raspberry Pi\'s own) make the system noticeably snappier.' },
+      { id: 'reader', name: 'USB microSD card reader', price: 10, tags: ['only if needed'], optional: true,
+        why: 'Only if your laptop has no card slot. Needed once, to flash the OS.' }
+    ],
+    pre: [
+      { id: 'preamp', name: 'Acoustic preamp / DI pedal', price: 45, tags: ['tone, not latency'], optional: true, off: true,
+        why: 'The Pisound\'s input (~100 kΩ) loads a passive piezo and makes it thin and quacky. A preamp fixes that. Budget pick: Behringer ADI21. Nicer: Fishman Platinum Pro EQ/DI or LR Baggs Venue DI (much pricier). Tick to include in the total.' },
+      { id: 'pedalpsu', name: '9 V pedal power supply', price: 12, tags: ['for the preamp'], optional: true, off: true,
+        why: 'Center-negative 9 V, the standard for pedals. Skip if your preamp runs on a battery and you\'re fine swapping it.' }
+    ],
+    cables: [
+      { id: 'inst', name: '¼" instrument cables ×2 (10 ft)', price: 20, tags: ['guitar → box, box → amp'],
+        why: 'Ordinary mono guitar cables work in the Pisound\'s stereo jacks; your signal uses the left channel.' },
+      { id: 'patch', name: 'Short ¼" patch cable (6–12 in)', price: 6, tags: ['preamp → box, loopback test'],
+        why: 'Connects the preamp to the box. Later it doubles as the loopback cable (Pisound out → in) for measuring real latency.' }
+    ]
+  };
+
+  let ram = 4;
+  let state = {};
+  try { state = JSON.parse(localStorage.getItem('fxbox-shop') || '{}'); } catch (e) { state = {}; }
+  try { const r = localStorage.getItem('fxbox-ram'); if (r) ram = +r; } catch (e) {}
+  const save = () => { try { localStorage.setItem('fxbox-shop', JSON.stringify(state)); localStorage.setItem('fxbox-ram', String(ram)); } catch (e) {} };
+
+  const priceOf = it => typeof it.price === 'object' ? it.price[ram] : it.price;
+  const money = v => '$' + (Math.round(v * 100) / 100).toFixed(v % 1 ? 2 : 0);
+
+  // included: optional items with off:true are excluded from the total unless ticked as "include"
+  function included(it) {
+    if (it.off) return !!(state[it.id] && state[it.id].inc);
+    if (it.id === 'reader') return !!(state[it.id] && state[it.id].inc);
+    return true;
+  }
+
+  function render() {
+    for (const [sec, items] of Object.entries(ITEMS)) {
+      const el = document.getElementById(sec); el.innerHTML = '';
+      for (const it of items) {
+        const st = state[it.id] || {};
+        const row = document.createElement('div');
+        row.className = 'item' + (st.bought ? ' bought' : '') + (it.optional ? ' optional' : '');
+        const tags = it.tags.filter(t => t !== 'key').map(t => `<span class="tag${it.tags.includes('key') ? ' key' : ''}">${t}</span>`).join('');
+        const incCtl = it.optional
+          ? `<span class="tag" style="cursor:pointer"><label><input type="checkbox" data-inc="${it.id}" ${st.inc ? 'checked' : ''} style="width:13px;height:13px;margin:0 5px 0 0;vertical-align:-2px">include in total</label></span>`
+          : '';
+        row.innerHTML = `
+          <input type="checkbox" id="b-${it.id}" data-bought="${it.id}" ${st.bought ? 'checked' : ''} aria-label="Bought: ${it.name}">
+          <div class="name"><label for="b-${it.id}">${it.name}</label></div>
+          <div class="price">≈ ${money(priceOf(it))}</div>
+          <div class="why">${it.why}</div>
+          <div class="tags">${tags}${incCtl}</div>`;
+        el.appendChild(row);
+      }
+    }
+    document.querySelectorAll('[data-bought]').forEach(cb => cb.addEventListener('change', e => {
+      const id = e.target.dataset.bought; state[id] = Object.assign({}, state[id], { bought: e.target.checked });
+      // ticking an optional item as bought also includes it
+      if (e.target.checked) state[id].inc = true;
+      save(); render();
+    }));
+    document.querySelectorAll('[data-inc]').forEach(cb => cb.addEventListener('change', e => {
+      const id = e.target.dataset.inc; state[id] = Object.assign({}, state[id], { inc: e.target.checked }); save(); totals();
+    }));
+    totals();
+  }
+
+  function totals() {
+    let tot = 0, left = 0, n = 0, done = 0;
+    for (const items of Object.values(ITEMS)) for (const it of items) {
+      if (!included(it)) continue;
+      const p = priceOf(it); tot += p; n++;
+      if (state[it.id] && state[it.id].bought) done++; else left += p;
+    }
+    document.getElementById('total').textContent = money(tot);
+    document.getElementById('left').textContent = money(left);
+    document.getElementById('count').textContent = `${done} of ${n} ticked`;
+  }
+
+  const seg = document.getElementById('ram');
+  const syncSeg = () => seg.querySelectorAll('button').forEach(b => b.setAttribute('aria-pressed', String(+b.dataset.ram === ram)));
+  seg.querySelectorAll('button').forEach(b => b.addEventListener('click', () => { ram = +b.dataset.ram; syncSeg(); save(); render(); }));
+  syncSeg(); render();
+})();
+</script>
+</body>
+</html>

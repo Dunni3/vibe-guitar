@@ -1,0 +1,1074 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>What Guitar Effects Cost to Compute</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=IBM+Plex+Mono:wght@400;500&family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,600;1,8..60,400&display=swap" rel="stylesheet">
+<style>
+/* Layout idea: one readable column with wider figures; each effect is a section with a diagram + an op-count ledger; interactive tools sit where the concept is explained. */
+:root {
+  --bg: #f3f5f6;
+  --surface: #ffffff;
+  --ink: #15212b;
+  --muted: #5a6a77;
+  --line: #d3dce2;
+  --accent: #0d6a88;
+  --accent-soft: #dcedf3;
+  --accent-2: #a8406a;
+  --accent-2-soft: #f5e1e9;
+  --ok: #2f7d4f;
+  --font-display: "Bricolage Grotesque", "Helvetica Neue", Arial, sans-serif;
+  --font-body: "Source Serif 4", Georgia, "Times New Roman", serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0d141a;
+    --surface: #141e26;
+    --ink: #e3eaef;
+    --muted: #91a2af;
+    --line: #283741;
+    --accent: #52b5d6;
+    --accent-soft: #163341;
+    --accent-2: #e2809f;
+    --accent-2-soft: #3a1f2b;
+    --ok: #6cc28f;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0d141a;
+  --surface: #141e26;
+  --ink: #e3eaef;
+  --muted: #91a2af;
+  --line: #283741;
+  --accent: #52b5d6;
+  --accent-soft: #163341;
+  --accent-2: #e2809f;
+  --accent-2-soft: #3a1f2b;
+  --ok: #6cc28f;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font-body);
+  font-size: 18px;
+  line-height: 1.6;
+}
+main {
+  max-width: 760px;
+  margin: 0 auto;
+  padding: 48px 20px 80px;
+  display: flex;
+  flex-direction: column;
+  gap: 56px;
+}
+h1, h2, h3 {
+  font-family: var(--font-display);
+  line-height: 1.15;
+  text-wrap: balance;
+  margin: 0;
+}
+h1 { font-size: clamp(2rem, 5vw, 2.8rem); font-weight: 700; letter-spacing: -0.01em; }
+h2 { font-size: 1.6rem; font-weight: 700; }
+h3 { font-size: 1.15rem; font-weight: 500; }
+p { margin: 0; max-width: 65ch; }
+section { display: flex; flex-direction: column; gap: 18px; }
+.lede { font-size: 1.15rem; color: var(--muted); }
+.tier {
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+  color: var(--accent);
+  letter-spacing: 0.02em;
+}
+header { display: flex; flex-direction: column; gap: 16px; }
+code, .mono { font-family: var(--font-mono); font-size: 0.88em; }
+.eq {
+  font-family: var(--font-mono);
+  font-size: 0.95rem;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 12px 16px;
+  overflow-x: auto;
+  white-space: nowrap;
+}
+.figure {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.figure .scroll { overflow-x: auto; }
+.caption { font-size: 0.9rem; color: var(--muted); }
+.callout {
+  border-left: 3px solid var(--accent);
+  padding: 4px 0 4px 16px;
+  color: var(--ink);
+}
+
+/* diagrams */
+svg.diagram { display: block; width: 100%; min-width: 560px; height: auto; }
+.d-box { fill: var(--surface); stroke: var(--ink); stroke-width: 1.4; }
+.d-hl { fill: var(--accent-soft); stroke: var(--accent); stroke-width: 1.4; }
+.d-line { stroke: var(--ink); stroke-width: 1.4; fill: none; }
+.d-dash { stroke: var(--accent); stroke-width: 1.2; stroke-dasharray: 4 3; fill: none; }
+.d-fb { stroke: var(--accent-2); stroke-width: 1.4; fill: none; }
+.d-text { fill: var(--ink); font-family: var(--font-mono); font-size: 13px; }
+.d-small { fill: var(--muted); font-family: var(--font-mono); font-size: 11px; }
+.d-acc { fill: var(--accent); font-family: var(--font-mono); font-size: 11px; }
+.d-dot { fill: var(--ink); }
+.d-head { fill: var(--ink); }
+.d-head-fb { fill: var(--accent-2); }
+.d-cell { stroke: var(--line); stroke-width: 1; }
+
+/* ledger tables */
+table.ledger {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.95rem;
+}
+.ledger th, .ledger td {
+  text-align: left;
+  padding: 7px 8px;
+  border-bottom: 1px solid var(--line);
+  vertical-align: top;
+}
+.ledger th { font-family: var(--font-display); font-weight: 500; font-size: 0.85rem; color: var(--muted); }
+.ledger td.n { font-family: var(--font-mono); font-variant-numeric: tabular-nums; text-align: right; white-space: nowrap; width: 7em; }
+.ledger th.n { text-align: right; }
+.ledger tr.total td { font-weight: 600; border-bottom: none; }
+.ledger tr.total td.n { color: var(--accent); }
+
+.glossary { margin: 0; padding-left: 1.2em; display: flex; flex-direction: column; gap: 6px; max-width: 65ch; }
+.knobs { margin: 0; display: grid; grid-template-columns: max-content 1fr; gap: 6px 14px; font-size: 0.95rem; max-width: 70ch; }
+.knobs dt { font-family: var(--font-display); font-weight: 500; color: var(--accent); }
+.knobs dd { margin: 0; }
+.plot-title { font-family: var(--font-display); font-weight: 500; font-size: 1rem; margin: 10px 0 0; display: flex; gap: 10px; align-items: center; }
+.plot-title .num { font-family: var(--font-mono); font-size: 0.75rem; color: var(--surface); background: var(--accent); border-radius: 50%; width: 1.6em; height: 1.6em; display: inline-flex; align-items: center; justify-content: center; flex: none; }
+.sub { font-size: 0.95rem; }
+.key-in { color: var(--muted); font-weight: 600; }
+.key-out { color: var(--accent); font-weight: 600; }
+.play { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+.play button {
+  font: inherit; font-family: var(--font-display); font-size: 0.9rem;
+  padding: 8px 14px; border-radius: 6px; cursor: pointer;
+  border: 1px solid var(--line); background: var(--bg); color: var(--ink);
+}
+.play button.primary { background: var(--accent); border-color: var(--accent); color: var(--surface); }
+.play button:hover { border-color: var(--accent); }
+.coef-details summary { cursor: pointer; font-family: var(--font-display); font-size: 0.9rem; color: var(--muted); }
+.coef-details[open] summary { margin-bottom: 8px; }
+.ctl.off { opacity: 0.45; }
+@media (max-width: 520px) { .knobs { grid-template-columns: 1fr; } .knobs dd { margin-bottom: 6px; } }
+.grid2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 20px; }
+.effect { display: flex; flex-direction: column; gap: 12px; }
+
+/* controls */
+.controls { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 14px 20px; }
+.ctl { display: flex; flex-direction: column; gap: 4px; font-family: var(--font-display); font-size: 0.85rem; color: var(--muted); }
+.ctl output { font-family: var(--font-mono); color: var(--ink); font-size: 0.9rem; }
+.ctl .row { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+input[type="range"] { width: 100%; accent-color: var(--accent); }
+select {
+  font: inherit;
+  font-family: var(--font-mono);
+  font-size: 0.9rem;
+  color: var(--ink);
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 6px 8px;
+}
+input:focus-visible, select:focus-visible, button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+canvas { display: block; width: 100%; }
+.coefs {
+  display: flex; flex-wrap: wrap; gap: 6px 18px;
+  font-family: var(--font-mono); font-size: 0.85rem; font-variant-numeric: tabular-nums;
+}
+.coefs span b { color: var(--accent); font-weight: 500; }
+
+.stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; }
+.stat {
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 10px 12px;
+  display: flex; flex-direction: column; gap: 2px;
+}
+.stat .k { font-family: var(--font-display); font-size: 0.8rem; color: var(--muted); }
+.stat .v { font-family: var(--font-mono); font-size: 1.25rem; font-variant-numeric: tabular-nums; }
+.stat .v.acc { color: var(--accent); }
+.stat .v.acc2 { color: var(--accent-2); }
+
+.bars { display: flex; flex-direction: column; gap: 12px; }
+.bar-row { display: grid; grid-template-columns: 11em 1fr 5.5em; gap: 12px; align-items: center; font-size: 0.9rem; }
+.bar-row .lab { font-family: var(--font-display); font-size: 0.85rem; }
+.bar-row .pct { font-family: var(--font-mono); text-align: right; font-variant-numeric: tabular-nums; }
+.track { height: 14px; background: var(--bg); border: 1px solid var(--line); border-radius: 4px; overflow: hidden; }
+.fill { height: 100%; background: var(--accent); width: 0; transition: width 0.25s ease; }
+.fill.alt { background: var(--accent-2); }
+
+.chain { display: flex; flex-direction: column; }
+.chain-item {
+  display: grid; grid-template-columns: 1fr auto 6em; gap: 12px; align-items: center;
+  padding: 9px 0; border-bottom: 1px solid var(--line); font-size: 0.95rem;
+}
+.chain-item label { display: flex; gap: 10px; align-items: center; cursor: pointer; }
+.chain-item input[type="checkbox"] { accent-color: var(--accent); width: 18px; height: 18px; }
+.chain-item .n { font-family: var(--font-mono); text-align: right; font-variant-numeric: tabular-nums; color: var(--muted); }
+.chain-item.on .n { color: var(--ink); }
+.chain-item select { font-size: 0.8rem; padding: 4px 6px; }
+.chain-total { display: grid; grid-template-columns: 1fr 6em; padding: 10px 0; font-weight: 600; }
+.chain-total .n { font-family: var(--font-mono); text-align: right; color: var(--accent); }
+
+.notes { font-size: 0.9rem; color: var(--muted); display: flex; flex-direction: column; gap: 8px; }
+.notes h3 { color: var(--ink); }
+
+@media (max-width: 520px) {
+  body { font-size: 17px; }
+  .bar-row { grid-template-columns: 1fr 4.5em; }
+  .bar-row .track { grid-column: 1 / -1; grid-row: 2; }
+  .chain-item { grid-template-columns: 1fr 5em; }
+  .chain-item .extra { grid-column: 1 / -1; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .fill { transition: none; }
+}
+</style>
+</head>
+<body>
+<main>
+
+<header>
+  <h1>What guitar effects cost to compute</h1>
+  <p class="lede">A digital effect runs a small piece of arithmetic on every sample of audio. At 48&nbsp;kHz that happens 48,000 times a second, so the useful way to measure an effect is <strong>operations per sample</strong>: how many multiplies and adds it needs before the next sample arrives.</p>
+  <p>All counts here are per sample, for one channel (your acoustic is mono), in 32-bit float. They're planning estimates that tell you roughly where each effect sits. Real code can land within about 2× either way.</p>
+</header>
+
+<section id="scale">
+  <h2>The whole picture on one scale</h2>
+  <p>The scale is logarithmic, so every gridline is ten times the last. The dashed lines show how many CPU cycles each sample gets on the two boxes you're weighing, if you count one operation as roughly one cycle.</p>
+  <div class="figure">
+    <div class="scroll"><svg id="scaleChart" class="diagram" viewBox="0 0 720 420" role="img" aria-label="Log-scale chart of operations per sample for each effect, against the per-sample cycle budgets of a Daisy Seed and one Raspberry Pi 5 core"></svg></div>
+    <p class="caption">Budget at 48 kHz: Daisy Seed, 480 MHz ÷ 48,000 = 10,000 cycles per sample. One Pi 5 core, 2.4 GHz ÷ 48,000 = 50,000 cycles per sample, and the Pi has four cores.</p>
+  </div>
+  <p class="callout">Almost everything sits two to three orders of magnitude below the budget. The one thing that gets close is convolution done the naive way, which is why the FFT trick in the last section matters.</p>
+</section>
+
+<section id="unit">
+  <h2>What counts as one operation</h2>
+  <p>One operation is a single floating-point multiply or add. Reading a value from memory, comparing two numbers, and looking something up in a table are roughly as cheap, so they get counted too. Expensive math functions such as <code>log</code>, <code>exp</code> and <code>sin</code> cost 10–30 operations each when written as fast approximations, and that's why effects that need them per sample sit higher up.</p>
+  <p>Both your candidate chips have a <em>fused multiply-add</em> instruction that does <code>a + b × c</code> in one step. Most audio code is chains of exactly that, so in practice a multiply-and-add pair often costs one cycle, not two.</p>
+</section>
+
+<!-- ============ TIER 1 ============ -->
+<section id="filter">
+  <span class="tier">Tier 1 · around 10 operations</span>
+  <h2>One EQ band or filter</h2>
+  <p><strong>First, what these controls are.</strong> Any sound is a mix of frequencies, measured in hertz (Hz, vibrations per second). Low frequencies are the bass, like the boom of the guitar body; your low E string's fundamental is about 82 Hz. High frequencies are the treble, like pick attack and string zing, up into the thousands of hertz (kHz). A <strong>filter</strong> makes some frequencies louder or quieter and leaves the rest alone.</p>
+  <ul class="glossary">
+    <li><strong>Tone control</strong>: the bass and treble knobs on an amp or stereo. Turning treble down makes the high frequencies quieter.</li>
+    <li><strong>EQ (equalizer)</strong>: a set of more precise tone controls. Each <strong>band</strong> is one control aimed at one range, such as "cut a little around 1.2 kHz" or "boost a little around 100 Hz".</li>
+    <li><strong>Low-cut</strong>, also called a high-pass filter: removes everything below a frequency you pick. On an acoustic it gets rid of boomy rumble and feedback below about 80 Hz.</li>
+    <li><strong>High-cut</strong>, also called a low-pass filter: removes everything above a frequency, for example harsh fizz above 8 kHz.</li>
+    <li><strong>Peaking band</strong>: a bump or dip around one frequency. <strong>Q</strong> sets how narrow it is: a high Q touches a thin slice, a low Q a broad region. A very narrow dip is called a notch.</li>
+    <li><strong>Shelf</strong>: raises or lowers everything above a point (high shelf) or below it (low shelf) by the same amount. A treble knob is a high shelf.</li>
+  </ul>
+  <p>Changes in loudness are measured in decibels (dB). 0 dB means no change, −6 dB is roughly half the amplitude, and +6 dB is roughly double. In the plot further down, the vertical axis is dB and the horizontal axis is frequency.</p>
+  <p>Under the hood, all of these are usually the same tiny filter, called a <strong>biquad</strong>. It remembers the last two input samples and the last two output samples, and mixes them with five fixed numbers called coefficients. Which kind of filter you get depends only on those five numbers.</p>
+  <div class="eq">y[n] = b0·x[n] + b1·x[n−1] + b2·x[n−2] − a1·y[n−1] − a2·y[n−2]</div>
+  <div class="figure">
+    <div class="scroll">
+    <svg class="diagram" viewBox="0 0 640 235" role="img" aria-label="Biquad filter block diagram, direct form one">
+      <defs>
+        <marker id="ah1" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="d-head"/></marker>
+        <marker id="ah1fb" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="d-head-fb"/></marker>
+      </defs>
+      <text x="14" y="36" class="d-text">x[n]</text>
+      <line x1="50" y1="40" x2="152" y2="40" class="d-line" marker-end="url(#ah1)"/>
+      <circle cx="90" cy="40" r="3.5" class="d-dot"/>
+      <!-- input delays -->
+      <line x1="90" y1="40" x2="90" y2="70" class="d-line"/>
+      <rect x="70" y="70" width="40" height="28" rx="4" class="d-hl"/><text x="78" y="89" class="d-text">z⁻¹</text>
+      <line x1="90" y1="98" x2="90" y2="150" class="d-line"/>
+      <circle cx="90" cy="125" r="3.5" class="d-dot"/>
+      <rect x="70" y="150" width="40" height="28" rx="4" class="d-hl"/><text x="78" y="169" class="d-text">z⁻¹</text>
+      <line x1="90" y1="178" x2="90" y2="205" class="d-line"/>
+      <line x1="90" y1="125" x2="152" y2="125" class="d-line" marker-end="url(#ah1)"/>
+      <line x1="90" y1="205" x2="152" y2="205" class="d-line" marker-end="url(#ah1)"/>
+      <!-- feedforward gains -->
+      <circle cx="170" cy="40" r="18" class="d-box"/><text x="158" y="45" class="d-text">×b0</text>
+      <circle cx="170" cy="125" r="18" class="d-box"/><text x="158" y="130" class="d-text">×b1</text>
+      <circle cx="170" cy="205" r="18" class="d-box"/><text x="158" y="210" class="d-text">×b2</text>
+      <line x1="188" y1="40" x2="278" y2="40" class="d-line" marker-end="url(#ah1)"/>
+      <line x1="188" y1="125" x2="300" y2="125" class="d-line"/>
+      <line x1="188" y1="205" x2="300" y2="205" class="d-line"/>
+      <line x1="300" y1="205" x2="300" y2="62" class="d-line" marker-end="url(#ah1)"/>
+      <!-- sum -->
+      <circle cx="300" cy="40" r="20" class="d-hl"/><text x="294" y="46" class="d-text">Σ</text>
+      <line x1="320" y1="40" x2="590" y2="40" class="d-line" marker-end="url(#ah1)"/>
+      <text x="596" y="45" class="d-text">y[n]</text>
+      <circle cx="430" cy="40" r="3.5" class="d-dot"/>
+      <!-- output delays (feedback) -->
+      <line x1="430" y1="40" x2="430" y2="70" class="d-fb"/>
+      <rect x="410" y="70" width="40" height="28" rx="4" class="d-hl"/><text x="418" y="89" class="d-text">z⁻¹</text>
+      <line x1="430" y1="98" x2="430" y2="150" class="d-fb"/>
+      <circle cx="430" cy="125" r="3.5" class="d-dot"/>
+      <rect x="410" y="150" width="40" height="28" rx="4" class="d-hl"/><text x="418" y="169" class="d-text">z⁻¹</text>
+      <line x1="430" y1="178" x2="430" y2="205" class="d-fb"/>
+      <line x1="430" y1="125" x2="383" y2="125" class="d-fb" marker-end="url(#ah1fb)"/>
+      <line x1="430" y1="205" x2="383" y2="205" class="d-fb" marker-end="url(#ah1fb)"/>
+      <circle cx="363" cy="125" r="18" class="d-box"/><text x="347" y="130" class="d-text">×−a1</text>
+      <circle cx="363" cy="205" r="18" class="d-box"/><text x="347" y="210" class="d-text">×−a2</text>
+      <line x1="345" y1="125" x2="302" y2="125" class="d-fb" marker-end="url(#ah1fb)"/>
+      <line x1="345" y1="205" x2="302" y2="205" class="d-fb" marker-end="url(#ah1fb)"/>
+      <text x="470" y="120" class="d-small">feedback: past outputs</text>
+      <text x="470" y="136" class="d-small">feed back into the sum</text>
+      <text x="470" y="200" class="d-small">5 circles = 5 multiplies</text>
+      <text x="470" y="216" class="d-small">Σ of 5 terms = 4 adds</text>
+    </svg>
+    </div>
+  </div>
+  <p>Five multiplies and four adds give nine operations, plus shuffling the four remembered values along: that's the "around 10". Turning an EQ knob only recomputes the five coefficients. The per-sample cost stays the same whether the band is a gentle shelf or a narrow notch. A 10-band graphic EQ is ten of these in a row, about 100 operations.</p>
+
+  <div class="figure" id="biquadFig">
+    <h3>Try it: one EQ band</h3>
+    <dl class="knobs">
+      <dt>Frequency</dt><dd>Where on the bass-to-treble range the band acts. Left of the plot is deep bass (20 Hz), right is the highest treble you can hear (20 kHz).</dd>
+      <dt>Gain</dt><dd>How much to turn that region up or down. 0 dB leaves it alone, −6 dB makes it about half as strong, +6 dB about twice as strong.</dd>
+      <dt>Width</dt><dd>How many neighbouring frequencies get pulled along. Narrow touches a thin slice; wide sweeps up a broad region. It's measured in octaves, where one octave is a doubling of frequency, like 600 Hz to 1,200 Hz. Engineers usually call this setting Q, and a higher Q means narrower.</dd>
+    </dl>
+    <div class="controls">
+      <label class="ctl" for="bqType"><span class="row">Filter type</span>
+        <select id="bqType">
+          <option value="peak" selected>Peaking (boost or cut)</option>
+          <option value="highpass">Low-cut</option>
+          <option value="lowpass">High-cut</option>
+        </select>
+      </label>
+      <label class="ctl" for="bqFreq"><span class="row">Frequency <output id="bqFreqOut">1.2 kHz</output></span>
+        <input id="bqFreq" type="range" min="0" max="1000" value="593">
+      </label>
+      <label class="ctl" for="bqGain"><span class="row">Gain <output id="bqGainOut">−12 dB</output></span>
+        <input id="bqGain" type="range" min="-18" max="18" step="0.5" value="-12">
+      </label>
+      <label class="ctl" for="bqWidth"><span class="row">Width <output id="bqWidthOut">1 octave</output></span>
+        <input id="bqWidth" type="range" min="0" max="1000" value="624">
+      </label>
+    </div>
+    <p class="caption" id="bqTypeNote"></p>
+
+    <h4 class="plot-title"><span class="num">1</span> How much each frequency gets turned up or down</h4>
+    <canvas id="bqCanvas" height="290" aria-label="How much the filter turns each frequency up or down"></canvas>
+    <p class="caption">Think of this as a long row of volume knobs, one for every frequency, and the line shows where each knob is set. On the flat part at 0 the sound passes through unchanged. Where the line dips, those frequencies come out quieter; where it rises, louder. The left axis gives the change in decibels; the right axis gives the same change as a multiplier on the wave's size. The three dots mark the test tones used below.</p>
+
+    <h4 class="plot-title"><span class="num">2</span> What that does to a real signal</h4>
+    <p class="sub">A guitar note is many frequencies sounding at once. To keep it readable, the test signal here is just three: a low tone, a mid tone in the range where a piezo sounds quacky, and a high tone. Each row shows 10 milliseconds of one tone. The <span class="key-in">grey line</span> goes into the filter and the <span class="key-out">blue line</span> comes out. The bottom row is all three added together, which is what a real signal looks like. Every point on the blue lines was calculated with the equation above, one sample at a time.</p>
+    <canvas id="sigCanvas" height="360" aria-label="Input and output waveforms for three test tones and their sum"></canvas>
+    <p class="caption">The filter can't tell the three tones apart. It runs the same five-coefficient sum on every sample, and each frequency simply comes out scaled by the amount shown in plot 1. That's why plot 1 tells you everything the filter will do. You may see the blue line slide slightly sideways compared with the grey. That's a tiny time shift filters cause near their working frequency, and it isn't audible here.</p>
+
+    <div class="play">
+      <button type="button" id="playDry">▶ Play a strum, unfiltered</button>
+      <button type="button" id="playWet" class="primary">▶ Play it through this filter</button>
+      <span class="caption" id="playMsg">A synthesized six-string strum. Change the knobs, then press play again.</span>
+    </div>
+
+    <details class="coef-details">
+      <summary>The five numbers the knobs produce</summary>
+      <div class="coefs" id="bqCoefs"></div>
+      <p class="caption">Moving a knob only changes these five coefficients. The work per sample is always 5 multiplies and 4 adds.</p>
+    </details>
+  </div>
+</section>
+
+<!-- ============ TIER 2 ============ -->
+<section id="mod">
+  <span class="tier">Tier 2 · tens to a few hundred operations</span>
+  <h2>Compressor, chorus, phaser, delay</h2>
+  <p>These effects combine a few cheap building blocks: filters, a <strong>delay line</strong> (a ring buffer of past samples), a slow <strong>LFO</strong> (a low-frequency oscillator that wobbles a parameter), and some gain math. Each block costs a handful of operations, so totals land in the tens. Stereo versions, extra voices or oversampling push them toward a few hundred.</p>
+
+  <div class="effect" id="compressor">
+    <h3>Compressor</h3>
+    <p>A compressor watches the signal's level in a side path and turns the gain down when it gets loud. The expensive step is that "how loud" is judged in decibels, so every sample needs a <code>log</code> going in and an <code>exp</code> coming back out.</p>
+    <div class="figure"><div class="scroll">
+      <svg class="diagram" viewBox="0 0 640 150" role="img" aria-label="Compressor block diagram with a level-detection sidechain">
+        <defs><marker id="ah2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" class="d-head"/></marker></defs>
+        <text x="14" y="36" class="d-text">x[n]</text>
+        <line x1="50" y1="40" x2="502" y2="40" class="d-line" marker-end="url(#ah2)"/>
+        <circle cx="70" cy="40" r="3.5" class="d-dot"/>
+        <circle cx="520" cy="40" r="18" class="d-hl"/><text x="514" y="45" class="d-text">×</text>
+        <line x1="538" y1="40" x2="590" y2="40" class="d-line" marker-end="url(#ah2)"/>
+        <text x="596" y="45" class="d-text">y[n]</text>
+        <line x1="70" y1="40" x2="70" y2="110" class="d-line"/>
+        <line x1="70" y1="110" x2="88" y2="110" class="d-line" marker-end="url(#ah2)"/>
+        <rect x="90" y="94" width="104" height="32" rx="4" class="d-box"/><text x="100" y="115" class="d-text">level |x|</text>
+        <line x1="194" y1="110" x2="213" y2="110" class="d-line" marker-end="url(#ah2)"/>
+        <rect x="215" y="94" width="112" height="32" rx="4" class="d-box"/><text x="224" y="115" class="d-text">attack/rel</text>
+        <line x1="327" y1="110" x2="346" y2="110" class="d-line" marker-end="url(#ah2)"/>
+        <rect x="348" y="94" width="130" height="32" rx="4" class="d-hl"/><text x="356" y="115" class="d-text">log→curve→exp</text>
+        <line x1="478" y1="110" x2="520" y2="110" class="d-line"/>
+        <line x1="520" y1="110" x2="520" y2="60" class="d-line" marker-end="url(#ah2)"/>
+        <text x="90" y="144" class="d-small">sidechain: decide the gain</text>
+        <text x="360" y="144" class="d-acc">most of the cost lives here</text>
+      </svg>
+    </div></div>
+    <table class="ledger">
+      <thead><tr><th>Step</th><th class="n">Ops</th></tr></thead>
+      <tbody>
+        <tr><td>Rectify or square the input to get a level</td><td class="n">1–2</td></tr>
+        <tr><td>Envelope follower: one-pole smoothing, with different attack and release speeds</td><td class="n">4</td></tr>
+        <tr><td>Level to decibels (fast <code>log</code> approximation)</td><td class="n">10–20</td></tr>
+        <tr><td>Gain curve: threshold, ratio, soft knee</td><td class="n">5–10</td></tr>
+        <tr><td>Decibels back to a linear gain (fast <code>exp</code>)</td><td class="n">10–20</td></tr>
+        <tr><td>Apply gain and makeup gain</td><td class="n">2</td></tr>
+        <tr class="total"><td>Total</td><td class="n">≈ 35–60</td></tr>
+      </tbody>
+    </table>
+    <p class="caption">A common shortcut is to compute the gain only every 16 or 32 samples and slide between values. That cuts the log/exp cost by about 20×, and nobody can hear the difference.</p>
+  </div>
+
+  <div class="effect" id="delay">
+    <h3>Delay and chorus: the delay line</h3>
+    <p>A <strong>delay</strong> writes each sample into a ring buffer and reads back the one from D samples ago (500 ms is 24,000 samples). The repeats come from feeding some of that output back into the input, usually through a gentle low-pass so each echo gets darker.</p>
+    <p>A <strong>chorus</strong> is the same buffer with a very short delay (about 5–30 ms) whose read point an LFO slides back and forth. The moving read point lands between stored samples, so the code <em>interpolates</em> between neighbours. That's the main extra cost, and the reason chorus sits above plain delay.</p>
+    <div class="figure"><div class="scroll">
+      <svg class="diagram" viewBox="0 0 640 175" role="img" aria-label="Delay line diagram with feedback path and a modulated read point for chorus">
+        <defs>
+          <marker id="ah3" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" class="d-head"/></marker>
+          <marker id="ah3fb" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" class="d-head-fb"/></marker>
+        </defs>
+        <text x="14" y="76" class="d-text">x[n]</text>
+        <line x1="50" y1="80" x2="74" y2="80" class="d-line" marker-end="url(#ah3)"/>
+        <circle cx="60" cy="80" r="3.5" class="d-dot"/>
+        <circle cx="90" cy="80" r="16" class="d-box"/><text x="84" y="85" class="d-text">Σ</text>
+        <line x1="106" y1="80" x2="128" y2="80" class="d-line" marker-end="url(#ah3)"/>
+        <rect x="130" y="62" width="300" height="36" rx="3" class="d-hl"/>
+        <g class="d-cell">
+          <line x1="155" y1="62" x2="155" y2="98"/><line x1="180" y1="62" x2="180" y2="98"/><line x1="205" y1="62" x2="205" y2="98"/><line x1="230" y1="62" x2="230" y2="98"/><line x1="255" y1="62" x2="255" y2="98"/><line x1="280" y1="62" x2="280" y2="98"/><line x1="305" y1="62" x2="305" y2="98"/><line x1="330" y1="62" x2="330" y2="98"/><line x1="355" y1="62" x2="355" y2="98"/><line x1="380" y1="62" x2="380" y2="98"/><line x1="405" y1="62" x2="405" y2="98"/>
+        </g>
+        <text x="136" y="54" class="d-small">write</text>
+        <text x="200" y="84" class="d-small">ring buffer of past samples</text>
+        <path d="M 380 46 L 386 56 L 374 56 z" class="d-head"/>
+        <text x="392" y="54" class="d-small">read at D</text>
+        <path d="M 345 110 L 415 110" class="d-dash"/>
+        <path d="M 345 106 L 339 110 L 345 114 M 415 106 L 421 110 L 415 114" class="d-dash" stroke-dasharray="none"/>
+        <text x="130" y="114" class="d-acc">chorus: LFO slides read point</text>
+        <line x1="430" y1="80" x2="502" y2="80" class="d-line" marker-end="url(#ah3)"/>
+        <circle cx="470" cy="80" r="3.5" class="d-dot"/>
+        <rect x="504" y="64" width="64" height="32" rx="4" class="d-box"/><text x="514" y="85" class="d-text">mix</text>
+        <line x1="568" y1="80" x2="592" y2="80" class="d-line" marker-end="url(#ah3)"/>
+        <text x="596" y="85" class="d-text">y[n]</text>
+        <path d="M 60 80 L 60 16 L 536 16 L 536 62" class="d-line" marker-end="url(#ah3)"/>
+        <text x="240" y="12" class="d-small">dry signal</text>
+        <path d="M 470 80 L 470 140 L 336 140" class="d-fb" marker-end="url(#ah3fb)"/>
+        <circle cx="320" cy="140" r="16" class="d-box"/><text x="310" y="145" class="d-text">×g</text>
+        <line x1="304" y1="140" x2="232" y2="140" class="d-fb" marker-end="url(#ah3fb)"/>
+        <rect x="170" y="124" width="60" height="32" rx="4" class="d-box"/><text x="180" y="145" class="d-text">LPF</text>
+        <path d="M 170 140 L 90 140 L 90 98" class="d-fb" marker-end="url(#ah3fb)"/>
+        <text x="360" y="160" class="d-small">feedback = repeats</text>
+      </svg>
+    </div></div>
+    <div class="grid2">
+      <table class="ledger">
+        <thead><tr><th>Delay</th><th class="n">Ops</th></tr></thead>
+        <tbody>
+          <tr><td>Write and read the buffer</td><td class="n">2</td></tr>
+          <tr><td>Feedback multiply-add</td><td class="n">2</td></tr>
+          <tr><td>Damping low-pass in the loop</td><td class="n">3</td></tr>
+          <tr><td>Wet/dry mix</td><td class="n">2–3</td></tr>
+          <tr class="total"><td>Total</td><td class="n">≈ 10–15</td></tr>
+        </tbody>
+      </table>
+      <table class="ledger">
+        <thead><tr><th>Chorus (per voice)</th><th class="n">Ops</th></tr></thead>
+        <tbody>
+          <tr><td>LFO step (table lookup or rotating phasor)</td><td class="n">3–5</td></tr>
+          <tr><td>Compute fractional read position</td><td class="n">2–3</td></tr>
+          <tr><td>Interpolate (linear 4, cubic ~12)</td><td class="n">4–12</td></tr>
+          <tr><td>Write, mix</td><td class="n">3</td></tr>
+          <tr class="total"><td>Total, 2–3 voices</td><td class="n">≈ 30–70</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="caption">The other cost of a delay is memory. A 2-second buffer at 48 kHz is 96,000 floats, about 375 KB. That's nothing on a Pi, but on the Daisy it has to live in the 64 MB of external SDRAM, which is slower to reach than on-chip memory.</p>
+  </div>
+
+  <div class="effect" id="phaser">
+    <h3>Phaser</h3>
+    <p>A phaser runs the signal through a chain of <strong>all-pass filters</strong>. These leave the volume of every frequency alone but shift their timing by different amounts. Mixed back with the dry signal, the shifted copy cancels some frequencies and leaves notches in the spectrum. An LFO sweeps the filters so the notches move, and that motion is the whoosh.</p>
+    <div class="figure"><div class="scroll">
+      <svg class="diagram" viewBox="0 0 640 150" role="img" aria-label="Phaser block diagram: chain of four all-pass filters swept by an LFO, mixed with the dry signal">
+        <defs><marker id="ah4" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" class="d-head"/></marker></defs>
+        <text x="14" y="66" class="d-text">x[n]</text>
+        <line x1="50" y1="60" x2="88" y2="60" class="d-line" marker-end="url(#ah4)"/>
+        <circle cx="62" cy="60" r="3.5" class="d-dot"/>
+        <rect x="90" y="44" width="60" height="32" rx="4" class="d-hl"/><text x="104" y="65" class="d-text">AP1</text>
+        <line x1="150" y1="60" x2="178" y2="60" class="d-line" marker-end="url(#ah4)"/>
+        <rect x="180" y="44" width="60" height="32" rx="4" class="d-hl"/><text x="194" y="65" class="d-text">AP2</text>
+        <line x1="240" y1="60" x2="268" y2="60" class="d-line" marker-end="url(#ah4)"/>
+        <rect x="270" y="44" width="60" height="32" rx="4" class="d-hl"/><text x="284" y="65" class="d-text">AP3</text>
+        <line x1="330" y1="60" x2="358" y2="60" class="d-line" marker-end="url(#ah4)"/>
+        <rect x="360" y="44" width="60" height="32" rx="4" class="d-hl"/><text x="374" y="65" class="d-text">AP4</text>
+        <line x1="420" y1="60" x2="468" y2="60" class="d-line" marker-end="url(#ah4)"/>
+        <rect x="470" y="44" width="64" height="32" rx="4" class="d-box"/><text x="482" y="65" class="d-text">mix</text>
+        <line x1="534" y1="60" x2="590" y2="60" class="d-line" marker-end="url(#ah4)"/>
+        <text x="596" y="65" class="d-text">y[n]</text>
+        <path d="M 62 60 L 62 18 L 502 18 L 502 42" class="d-line" marker-end="url(#ah4)"/>
+        <text x="220" y="13" class="d-small">dry signal</text>
+        <path d="M 120 76 L 120 98 L 390 98 L 390 76 M 210 76 L 210 98 M 300 76 L 300 98 M 255 98 L 255 112" class="d-dash"/>
+        <rect x="205" y="112" width="100" height="28" rx="4" class="d-box"/><text x="222" y="131" class="d-text">LFO</text>
+        <text x="320" y="131" class="d-small">sweeps all stages together</text>
+      </svg>
+    </div></div>
+    <table class="ledger">
+      <thead><tr><th>Step</th><th class="n">Ops</th></tr></thead>
+      <tbody>
+        <tr><td>LFO step, then map it to an all-pass coefficient</td><td class="n">5–9</td></tr>
+        <tr><td>Each first-order all-pass: 2 multiplies, 2 adds, × 4 to 12 stages</td><td class="n">16–48</td></tr>
+        <tr><td>Optional feedback, wet/dry mix</td><td class="n">4</td></tr>
+        <tr class="total"><td>Total</td><td class="n">≈ 25–60</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- ============ TIER 3 ============ -->
+<section id="reverb">
+  <span class="tier">Tier 3 · a few hundred to a couple of thousand</span>
+  <h2>A decent algorithmic reverb</h2>
+  <p>A real room returns thousands of reflections that blur into a smooth, decaying tail. An algorithmic reverb fakes that with many delay lines of different, unrelated lengths that feed back into each other, so echoes multiply into a dense wash. Each line is as cheap as the delay above. A reverb simply needs a lot of them, plus diffusers and filtering, and good ones add slow modulation so the tail doesn't ring metallically.</p>
+  <div class="figure"><div class="scroll">
+    <svg class="diagram" viewBox="0 0 640 175" role="img" aria-label="Reverb structure: pre-delay, diffusers, and a feedback tank of many delay lines">
+      <defs><marker id="ah5" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" class="d-head"/></marker>
+      <marker id="ah5fb" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" class="d-head-fb"/></marker></defs>
+      <text x="10" y="91" class="d-text">x</text>
+      <line x1="24" y1="86" x2="48" y2="86" class="d-line" marker-end="url(#ah5)"/>
+      <rect x="50" y="66" width="90" height="40" rx="4" class="d-box"/><text x="60" y="91" class="d-text">pre-delay</text>
+      <line x1="140" y1="86" x2="163" y2="86" class="d-line" marker-end="url(#ah5)"/>
+      <rect x="165" y="66" width="125" height="40" rx="4" class="d-box"/><text x="175" y="91" class="d-text">4 all-passes</text>
+      <line x1="290" y1="86" x2="313" y2="86" class="d-line" marker-end="url(#ah5)"/>
+      <rect x="315" y="50" width="230" height="72" rx="6" class="d-hl"/>
+      <g class="d-line">
+        <line x1="330" y1="66" x2="440" y2="66"/><line x1="330" y1="78" x2="470" y2="78"/><line x1="330" y1="90" x2="420" y2="90"/><line x1="330" y1="102" x2="455" y2="102"/>
+      </g>
+      <rect x="480" y="60" width="52" height="50" rx="3" class="d-box"/><text x="489" y="82" class="d-small">mix</text><text x="485" y="96" class="d-small">matrix</text>
+      <path d="M 506 50 C 506 22, 352 22, 352 48" class="d-fb" marker-end="url(#ah5fb)"/>
+      <text x="380" y="24" class="d-small">feedback: every line feeds every line</text>
+      <line x1="545" y1="86" x2="595" y2="86" class="d-line" marker-end="url(#ah5)"/>
+      <text x="600" y="91" class="d-text">y</text>
+      <text x="56" y="128" class="d-small">gap before</text>
+      <text x="56" y="142" class="d-small">the tail</text>
+      <text x="171" y="128" class="d-small">smear the attack</text>
+      <text x="171" y="142" class="d-acc">~12 ops</text>
+      <text x="321" y="140" class="d-small">8–16 delay lines + damping</text>
+      <text x="321" y="155" class="d-acc">8 lines ~120 · 16 modulated ~400</text>
+    </svg>
+  </div></div>
+  <table class="ledger">
+    <thead><tr><th>Design</th><th class="n">Ops (stereo out)</th></tr></thead>
+    <tbody>
+      <tr><td><strong>Freeverb-style</strong>: 8 damped comb filters + 4 all-passes per side. Free and serviceable, though a bit grainy.</td><td class="n">≈ 100–120</td></tr>
+      <tr><td><strong>Plate (Dattorro)</strong>: input diffusers plus a figure-eight tank with two modulated all-passes. Smooth, classic.</td><td class="n">≈ 150–250</td></tr>
+      <tr><td><strong>16-line FDN</strong>, modulated: a feedback delay network with interpolated reads, per-line damping and a fast Hadamard mixing matrix (16 × log₂16 = 64 adds).</td><td class="n">≈ 300–500</td></tr>
+      <tr><td><strong>High-end hall</strong>: several diffusion stages, many modulated lines, early reflections, multiband decay, sometimes 2× oversampling.</td><td class="n">≈ 1,000–2,000+</td></tr>
+    </tbody>
+  </table>
+  <p>Reverb is also the effect that touches the most memory. A big hall can hold a few hundred KB of delay buffer and visit all of it every sample. The Pi's caches handle that easily. On the Daisy, buffers that spill into SDRAM can make a reverb cost noticeably more cycles than its op count suggests.</p>
+</section>
+
+<!-- ============ TIER 4 ============ -->
+<section id="convolution">
+  <span class="tier">Tier 4 · modest, if you use FFTs</span>
+  <h2>Convolution with a body impulse response</h2>
+  <p><strong>Why the piezo needs it.</strong> An under-saddle piezo senses vibration right at the saddle, mostly the strings. It misses how the spruce top, the back and the air inside the body shape the sound, and it adds harsh peaks of its own. That's the thin, "quacky" plugged-in tone.</p>
+  <p><strong>What an impulse response is.</strong> An impulse response (IR) captures how a system rings after a single click. The usual way to make a body IR: record the piezo and a good microphone at the same time, then work out the filter that turns one into the other. Running your piezo signal through that filter makes it sound much more like the mic'd guitar. A body IR is typically 20–100 ms long, which is 1,000–5,000 samples at 48 kHz.</p>
+  <p><strong>Why naive convolution is expensive.</strong> Applying an IR means every output sample is a weighted sum of the last N input samples, with the IR as the weights:</p>
+  <div class="eq">y[n] = Σ<sub>k=0…N−1</sub> h[k] · x[n−k]   →   N multiplies + N adds per sample</div>
+  <p>A 50 ms IR is 2,400 taps, so about 4,800 operations per sample. That's half the Daisy's entire budget for one effect.</p>
+  <p><strong>The FFT trick.</strong> Convolution in time is the same as multiplication in frequency. So you collect a block of samples, FFT it, multiply it bin-by-bin with the pre-transformed IR, and inverse-FFT the result. An FFT of size M costs about M·log₂M operations instead of M², so the cost per sample grows with the <em>logarithm</em> of the IR length, not the length itself.</p>
+  <p><strong>The catch is latency.</strong> You can't transform a block until you've collected it, so a 2,048-sample block adds 43 ms of delay, far too much to play through. The fix is <em>partitioned convolution</em>: chop the IR into P short pieces of B samples, transform each once ahead of time, and combine them in the frequency domain. Latency drops to B samples, at the price of P complex multiply-adds per frequency bin. The calculator shows the trade.</p>
+
+  <div class="figure" id="convFig">
+    <h3>Convolution cost calculator</h3>
+    <div class="controls">
+      <label class="ctl" for="irLen"><span class="row">IR length <output id="irLenOut">50 ms</output></span>
+        <input id="irLen" type="range" min="5" max="250" step="1" value="50">
+      </label>
+      <label class="ctl" for="blk"><span class="row">Partition (block) size</span>
+        <select id="blk">
+          <option value="32">32 samples</option>
+          <option value="64">64 samples</option>
+          <option value="128" selected>128 samples</option>
+          <option value="256">256 samples</option>
+          <option value="512">512 samples</option>
+          <option value="1024">1,024 samples</option>
+          <option value="2048">2,048 samples</option>
+          <option value="4096">4,096 samples</option>
+        </select>
+      </label>
+    </div>
+    <canvas id="irCanvas" height="110" aria-label="Sketch of a decaying impulse response divided into partitions"></canvas>
+    <div class="stats">
+      <div class="stat"><span class="k">IR taps at 48 kHz</span><span class="v" id="cTaps">2,400</span></div>
+      <div class="stat"><span class="k">Direct ops / sample</span><span class="v acc2" id="cDirect">4,800</span></div>
+      <div class="stat"><span class="k">FFT-partitioned ops / sample</span><span class="v acc" id="cFft">233</span></div>
+      <div class="stat"><span class="k">Added latency</span><span class="v" id="cLat">2.7 ms</span></div>
+    </div>
+    <div class="bars">
+      <div class="bar-row"><span class="lab">Direct</span><div class="track"><div class="fill alt" id="bDirect"></div></div><span class="pct" id="pDirect">48%</span></div>
+      <div class="bar-row"><span class="lab">FFT-partitioned</span><div class="track"><div class="fill" id="bFft"></div></div><span class="pct" id="pFft">2.3%</span></div>
+    </div>
+    <p class="caption">Bars show the share of the Daisy Seed's 10,000 cycles per sample. Model: real FFTs at about 2.5·M·log₂M operations for FFT size M = 2B, one forward and one inverse transform per block, plus 8 operations per bin per partition for the complex multiply-add. Small blocks give low latency but need more partitions. Commercial IR loaders go further with <em>non-uniform</em> partitions: a tiny first block for near-zero latency, then progressively bigger ones for the tail.</p>
+  </div>
+</section>
+
+<!-- ============ BUDGET ============ -->
+<section id="budget">
+  <h2>Your chain against the budget</h2>
+  <p>Switch effects on and off to see what a realistic acoustic rig costs. The body IR row uses whatever you set in the calculator above.</p>
+  <div class="figure">
+    <div class="chain" id="chain"></div>
+    <div class="chain-total"><span>Total per sample</span><span class="n" id="chainTotal">0</span></div>
+    <div class="bars">
+      <div class="bar-row"><span class="lab">Daisy Seed (480 MHz)</span><div class="track"><div class="fill" id="bDaisy"></div></div><span class="pct" id="pDaisy">0%</span></div>
+      <div class="bar-row"><span class="lab">One Pi 5 core (2.4 GHz)</span><div class="track"><div class="fill" id="bPi"></div></div><span class="pct" id="pPi">0%</span></div>
+    </div>
+    <p class="caption" id="chainNote"></p>
+  </div>
+  <p class="callout">Raw arithmetic won't be what limits either box for a pedal like this. On the Daisy the tighter limits are memory speed for long buffers and how much you want to write in C++. On the Pi the real work is getting low, steady latency out of Linux: a real-time audio setup, small buffers, and keeping the web server from stealing time from the audio thread.</p>
+</section>
+
+<section class="notes" id="caveats">
+  <h3>How rough are these numbers?</h3>
+  <p>Treating one operation as one cycle is a planning rule, not a benchmark. On the Pi 5, NEON SIMD instructions do four float operations at once, so block-friendly code like FFTs and filter banks can run several times faster than the op count suggests. On both chips, cache misses, branches and function-call overhead push the other way. Audio also runs in blocks (say 64 samples), which spreads the fixed per-block costs thin. Doubling the sample rate to 96 kHz halves the cycles available per sample and roughly doubles the tap count of any IR.</p>
+</section>
+
+</main>
+
+<script>
+(function () {
+  var FS = 48000;
+  var DAISY = 480e6 / FS;  // cycles per sample
+  var PI = 2.4e9 / FS;
+  function cssVar(n) { return getComputedStyle(document.documentElement).getPropertyValue(n).trim(); }
+  function fmt(n) { return Math.round(n).toLocaleString("en-US"); }
+  function pct(x) { return x < 10 ? x.toFixed(1) + "%" : Math.round(x) + "%"; }
+
+  /* ---------- log-scale overview chart ---------- */
+  var rows = [
+    { name: "One EQ band / filter", lo: 9, hi: 12, tier: "1" },
+    { name: "Delay", lo: 10, hi: 30, tier: "2" },
+    { name: "Phaser", lo: 25, hi: 60, tier: "2" },
+    { name: "Compressor", lo: 35, hi: 60, tier: "2" },
+    { name: "Chorus", lo: 30, hi: 70, tier: "2" },
+    { name: "Stereo / fancier versions", lo: 60, hi: 300, tier: "2" },
+    { name: "Algorithmic reverb", lo: 100, hi: 2000, tier: "3" },
+    { name: "Body IR, FFT-partitioned", lo: 136, hi: 680, tier: "4" },
+    { name: "Body IR, direct (50 ms)", lo: 4800, hi: 4800, tier: "x" }
+  ];
+  function drawScale() {
+    var svg = document.getElementById("scaleChart");
+    var W = 720, left = 230, right = 700, top = 46, rowH = 38;
+    var H = top + rows.length * rowH + 30;
+    svg.setAttribute("viewBox", "0 0 " + W + " " + H);
+    function X(v) { return left + (Math.log10(v) / 5) * (right - left); }
+    var ink = cssVar("--ink"), muted = cssVar("--muted"), line = cssVar("--line"),
+        acc = cssVar("--accent"), acc2 = cssVar("--accent-2"), soft = cssVar("--accent-soft");
+    var s = "";
+    var ticks = [1, 10, 100, 1000, 10000, 100000], tl = ["1", "10", "100", "1k", "10k", "100k"];
+    ticks.forEach(function (t, i) {
+      var x = X(t);
+      s += '<line x1="' + x + '" y1="' + (top - 8) + '" x2="' + x + '" y2="' + (H - 26) + '" stroke="' + line + '" stroke-width="1"/>';
+      s += '<text x="' + x + '" y="' + (H - 8) + '" fill="' + muted + '" font-family="IBM Plex Mono, monospace" font-size="11" text-anchor="middle">' + tl[i] + '</text>';
+    });
+    [[DAISY, "Daisy budget 10k"], [PI, "Pi 5 core 50k"]].forEach(function (b, i) {
+      var x = X(b[0]);
+      s += '<line x1="' + x + '" y1="' + (top - 8) + '" x2="' + x + '" y2="' + (H - 26) + '" stroke="' + acc + '" stroke-width="1.5" stroke-dasharray="5 4"/>';
+      s += '<text x="' + (x + (i === 0 ? -4 : 4)) + '" y="' + (top - 16 - (i === 0 ? 14 : 0)) + '" fill="' + acc + '" font-family="IBM Plex Mono, monospace" font-size="11" text-anchor="' + (i === 0 ? "end" : "end") + '">' + b[1] + '</text>';
+    });
+    rows.forEach(function (r, i) {
+      var y = top + i * rowH + rowH / 2;
+      s += '<text x="0" y="' + (y + 4) + '" fill="' + ink + '" font-family="Bricolage Grotesque, sans-serif" font-size="13">' + r.name + '</text>';
+      var x1 = X(r.lo), x2 = Math.max(X(r.hi), x1 + 6);
+      var col = r.tier === "x" ? acc2 : acc;
+      s += '<rect x="' + x1 + '" y="' + (y - 7) + '" width="' + (x2 - x1) + '" height="14" rx="7" fill="' + col + '" fill-opacity="' + (r.tier === "x" ? 0.85 : 0.9) + '"/>';
+      var label = r.lo === r.hi ? fmt(r.lo) : fmt(r.lo) + "–" + fmt(r.hi);
+      var lx = r.tier === "x" ? x1 - 8 : x2 + 8, anchor = r.tier === "x" ? "end" : "start";
+      s += '<text x="' + lx + '" y="' + (y + 4) + '" text-anchor="' + anchor + '" fill="' + muted + '" font-family="IBM Plex Mono, monospace" font-size="11">' + label + '</text>';
+    });
+    s += '<text x="0" y="' + (H - 8) + '" fill="' + muted + '" font-family="IBM Plex Mono, monospace" font-size="11">ops per sample →</text>';
+    svg.innerHTML = s;
+  }
+
+  /* ---------- biquad ---------- */
+  var bq = {
+    type: document.getElementById("bqType"),
+    f: document.getElementById("bqFreq"),
+    g: document.getElementById("bqGain"),
+    w: document.getElementById("bqWidth"),
+    canvas: document.getElementById("bqCanvas"),
+    sig: document.getElementById("sigCanvas")
+  };
+  var TONES = [
+    { f: 110, a: 1.0, name: "Low tone, 110 Hz (the open A string)" },
+    { f: 1200, a: 0.6, name: "Mid tone, 1.2 kHz (where piezo quack lives)" },
+    { f: 5000, a: 0.35, name: "High tone, 5 kHz (string zing)" }
+  ];
+  function sliderFreq(v) { return 20 * Math.pow(1000, v / 1000); }
+  function sliderOct(v) { return 0.1 * Math.pow(40, v / 1000); }
+  function qFromOct(bw) { var p = Math.pow(2, bw); return Math.sqrt(p) / (p - 1); }
+  function fmtHz(f) { return f >= 1000 ? (f / 1000).toFixed(f >= 10000 ? 0 : 1) + " kHz" : Math.round(f) + " Hz"; }
+  function fmtMul(m) {
+    if (m >= 0.995 && m <= 1.005) return "×1";
+    return "×" + (m >= 10 ? m.toFixed(0) : m >= 1 ? m.toFixed(1) : m.toFixed(2));
+  }
+  function coeffs(type, f0, gain, Q, fs) {
+    var A = Math.pow(10, gain / 40), w0 = 2 * Math.PI * f0 / fs;
+    var c = Math.cos(w0), sn = Math.sin(w0), al = sn / (2 * Q);
+    var b0, b1, b2, a0, a1, a2;
+    if (type === "peak") {
+      b0 = 1 + al * A; b1 = -2 * c; b2 = 1 - al * A; a0 = 1 + al / A; a1 = -2 * c; a2 = 1 - al / A;
+    } else if (type === "lowpass") {
+      b0 = (1 - c) / 2; b1 = 1 - c; b2 = (1 - c) / 2; a0 = 1 + al; a1 = -2 * c; a2 = 1 - al;
+    } else {
+      b0 = (1 + c) / 2; b1 = -(1 + c); b2 = (1 + c) / 2; a0 = 1 + al; a1 = -2 * c; a2 = 1 - al;
+    }
+    return { b0: b0 / a0, b1: b1 / a0, b2: b2 / a0, a1: a1 / a0, a2: a2 / a0 };
+  }
+  function magDb(k, f, fs) {
+    var w = 2 * Math.PI * f / fs, c1 = Math.cos(w), s1 = Math.sin(w), c2 = Math.cos(2 * w), s2 = Math.sin(2 * w);
+    var nr = k.b0 + k.b1 * c1 + k.b2 * c2, ni = -(k.b1 * s1 + k.b2 * s2);
+    var dr = 1 + k.a1 * c1 + k.a2 * c2, di = -(k.a1 * s1 + k.a2 * s2);
+    return 10 * Math.log10((nr * nr + ni * ni) / (dr * dr + di * di));
+  }
+  function runBiquad(k, x) {
+    var y = new Float32Array(x.length), x1 = 0, x2 = 0, y1 = 0, y2 = 0;
+    for (var i = 0; i < x.length; i++) {
+      var v = k.b0 * x[i] + k.b1 * x1 + k.b2 * x2 - k.a1 * y1 - k.a2 * y2;
+      x2 = x1; x1 = x[i]; y2 = y1; y1 = v; y[i] = v;
+    }
+    return y;
+  }
+  function setupCanvas(cv) {
+    var dpr = window.devicePixelRatio || 1;
+    var w = cv.clientWidth, h = +(cv.dataset.h || (cv.dataset.h = cv.getAttribute("height")));
+    cv.style.height = h + "px";
+    cv.width = Math.round(w * dpr); cv.height = Math.round(h * dpr);
+    var ctx = cv.getContext("2d"); ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    return { ctx: ctx, w: w, h: h };
+  }
+  function params() {
+    var type = bq.type.value, bw = sliderOct(+bq.w.value);
+    return {
+      type: type,
+      f0: sliderFreq(+bq.f.value),
+      gain: +bq.g.value,
+      bw: bw,
+      Q: type === "peak" ? qFromOct(bw) : Math.SQRT1_2
+    };
+  }
+
+  function drawResponse(k, p) {
+    var c = setupCanvas(bq.canvas), ctx = c.ctx, W = c.w, H = c.h;
+    var padL = 44, padR = 46, padT = 22, padB = 44, pw = W - padL - padR, ph = H - padT - padB;
+    var ink = cssVar("--ink"), muted = cssVar("--muted"), line = cssVar("--line"),
+        acc = cssVar("--accent"), soft = cssVar("--accent-soft"), acc2 = cssVar("--accent-2");
+    var dbMax = 24;
+    function fx(f) { return padL + (Math.log10(f / 20) / 3) * pw; }
+    function fy(db) { return padT + (1 - (db + dbMax) / (2 * dbMax)) * ph; }
+    function clampDb(d) { return Math.max(-dbMax, Math.min(dbMax, d)); }
+    ctx.clearRect(0, 0, W, H);
+    ctx.font = "11px 'IBM Plex Mono', monospace";
+    ctx.lineWidth = 1;
+    // axis titles
+    ctx.fillStyle = muted; ctx.textAlign = "left"; ctx.fillText("louder ↑  dB", 0, 12);
+    ctx.textAlign = "right"; ctx.fillText("× size", W, 12);
+    var mult = { "24": "×16", "12": "×4", "0": "×1", "-12": "×1/4", "-24": "×1/16" };
+    [-24, -12, 0, 12, 24].forEach(function (d) {
+      ctx.strokeStyle = d === 0 ? muted : line; ctx.globalAlpha = d === 0 ? 0.7 : 1;
+      ctx.beginPath(); ctx.moveTo(padL, fy(d)); ctx.lineTo(W - padR, fy(d)); ctx.stroke(); ctx.globalAlpha = 1;
+      ctx.fillStyle = muted;
+      ctx.textAlign = "right"; ctx.fillText((d > 0 ? "+" : "") + d, padL - 6, fy(d) + 4);
+      ctx.textAlign = "left"; ctx.fillText(mult[String(d)], W - padR + 6, fy(d) + 4);
+    });
+    ctx.fillStyle = muted; ctx.textAlign = "left";
+    ctx.fillText("unchanged", padL + 4, fy(0) - 5);
+    [[20, "20"], [100, "100"], [1000, "1k"], [10000, "10k"], [20000, "20k"]].forEach(function (t) {
+      ctx.strokeStyle = line; ctx.beginPath(); ctx.moveTo(fx(t[0]), padT); ctx.lineTo(fx(t[0]), padT + ph); ctx.stroke();
+      ctx.fillStyle = muted; ctx.textAlign = t[0] === 20 ? "left" : t[0] === 20000 ? "right" : "center"; ctx.fillText(t[1], fx(t[0]), padT + ph + 15);
+    });
+    [50, 200, 500, 2000, 5000].forEach(function (f) {
+      ctx.strokeStyle = line; ctx.globalAlpha = 0.5; ctx.beginPath(); ctx.moveTo(fx(f), padT); ctx.lineTo(fx(f), padT + ph); ctx.stroke(); ctx.globalAlpha = 1;
+    });
+    ctx.fillStyle = muted; ctx.textAlign = "center";
+    ctx.fillText("← bass        frequency (Hz)        treble →", padL + pw / 2, H - 6);
+    // curve
+    var pts = [];
+    for (var i = 0; i <= 300; i++) {
+      var f = 20 * Math.pow(1000, i / 300);
+      pts.push([fx(f), fy(clampDb(magDb(k, Math.min(f, FS / 2 - 1), FS)))]);
+    }
+    ctx.beginPath(); ctx.moveTo(pts[0][0], fy(0));
+    pts.forEach(function (q) { ctx.lineTo(q[0], q[1]); });
+    ctx.lineTo(pts[pts.length - 1][0], fy(0)); ctx.closePath();
+    ctx.fillStyle = soft; ctx.globalAlpha = 0.8; ctx.fill(); ctx.globalAlpha = 1;
+    ctx.beginPath(); pts.forEach(function (q, j) { j ? ctx.lineTo(q[0], q[1]) : ctx.moveTo(q[0], q[1]); });
+    ctx.strokeStyle = acc; ctx.lineWidth = 2.5; ctx.stroke();
+    // test tones
+    TONES.forEach(function (t, i) {
+      var d = clampDb(magDb(k, t.f, FS)), x = fx(t.f), y = fy(d);
+      ctx.fillStyle = acc2; ctx.beginPath(); ctx.arc(x, y, 4.5, 0, 2 * Math.PI); ctx.fill();
+      ctx.font = "600 11px 'IBM Plex Mono', monospace"; ctx.textAlign = "center";
+      var above = d > 12 ? 1 : d < -12 ? -1 : (i === 1 ? -1 : -1);
+      ctx.fillText(["low", "mid", "high"][i], x, y + (d < -16 ? -10 : (d > 16 ? 18 : -10)));
+      ctx.font = "11px 'IBM Plex Mono', monospace";
+    });
+  }
+
+  function drawSignals(k) {
+    var c = setupCanvas(bq.sig), ctx = c.ctx, W = c.w, H = c.h;
+    var ink = cssVar("--ink"), muted = cssVar("--muted"), line = cssVar("--line"), acc = cssVar("--accent");
+    var warm = 4800, view = 480, n = warm + view;
+    var ins = [], outs = [], sumIn = new Float32Array(n), sumOut;
+    TONES.forEach(function (t) {
+      var x = new Float32Array(n);
+      for (var i = 0; i < n; i++) { x[i] = t.a * Math.sin(2 * Math.PI * t.f * i / FS); sumIn[i] += x[i]; }
+      ins.push(x); outs.push(runBiquad(k, x));
+    });
+    sumOut = runBiquad(k, sumIn);
+    var rows = [];
+    TONES.forEach(function (t, i) {
+      rows.push({ name: t.name, x: ins[i], y: outs[i], mul: Math.pow(10, magDb(k, t.f, FS) / 20) });
+    });
+    rows.push({ name: "All three together (what a real signal looks like)", x: sumIn, y: sumOut, mul: null });
+    var rowH = H / rows.length;
+    ctx.clearRect(0, 0, W, H);
+    rows.forEach(function (r, ri) {
+      var top = ri * rowH, labelY = top + 14, y0 = top + 22, y1 = top + rowH - 8, mid = (y0 + y1) / 2, half = (y1 - y0) / 2;
+      var peak = 0;
+      for (var i = warm; i < n; i++) peak = Math.max(peak, Math.abs(r.x[i]), Math.abs(r.y[i]));
+      var sc = half / (peak || 1);
+      if (ri > 0) { ctx.strokeStyle = line; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(0, top + 0.5); ctx.lineTo(W, top + 0.5); ctx.stroke(); }
+      ctx.font = "13px 'Bricolage Grotesque', sans-serif"; ctx.fillStyle = ink; ctx.textAlign = "left";
+      ctx.fillText(r.name, 0, labelY);
+      if (r.mul !== null) {
+        var db = 20 * Math.log10(r.mul);
+        ctx.font = "500 12px 'IBM Plex Mono', monospace"; ctx.fillStyle = acc; ctx.textAlign = "right";
+        ctx.fillText("comes out " + fmtMul(r.mul) + "  (" + (db >= 0.05 ? "+" : db <= -0.05 ? "−" : "") + Math.abs(db).toFixed(1) + " dB)", W, labelY);
+      }
+      ctx.strokeStyle = line; ctx.beginPath(); ctx.moveTo(0, mid); ctx.lineTo(W, mid); ctx.stroke();
+      function trace(arr, col, lw) {
+        ctx.strokeStyle = col; ctx.lineWidth = lw; ctx.beginPath();
+        for (var i = 0; i < view; i++) {
+          var x = (i / (view - 1)) * W, y = mid - arr[warm + i] * sc;
+          i ? ctx.lineTo(x, y) : ctx.moveTo(x, y);
+        }
+        ctx.stroke();
+      }
+      ctx.globalAlpha = 0.75; trace(r.x, muted, 1.5); ctx.globalAlpha = 1;
+      trace(r.y, acc, 2);
+    });
+  }
+
+  function drawBiquad() {
+    var p = params(), peak = p.type === "peak";
+    bq.g.disabled = !peak; bq.w.disabled = !peak;
+    bq.g.closest(".ctl").classList.toggle("off", !peak);
+    bq.w.closest(".ctl").classList.toggle("off", !peak);
+    document.getElementById("bqFreqOut").textContent = fmtHz(p.f0);
+    document.getElementById("bqGainOut").textContent = peak ? (p.gain > 0 ? "+" : p.gain < 0 ? "−" : "") + Math.abs(p.gain) + " dB" : "not used";
+    document.getElementById("bqWidthOut").textContent = peak ? (p.bw < 0.95 || p.bw > 1.05 ? p.bw.toFixed(p.bw < 1 ? 2 : 1) + " octaves" : "1 octave") + " · Q " + p.Q.toFixed(2) : "not used";
+    document.getElementById("bqTypeNote").textContent =
+      p.type === "peak" ? "Starts as a deep 12 dB cut around 1.2 kHz, the kind of move used against piezo quack, made extra deep so it's easy to see."
+      : p.type === "highpass" ? "Low-cut: everything below the frequency fades out, everything above passes. Gain and width don't apply."
+      : "High-cut: everything above the frequency fades out, everything below passes. Gain and width don't apply.";
+    var k = coeffs(p.type, p.f0, p.gain, p.Q, FS);
+    document.getElementById("bqCoefs").innerHTML = ["b0", "b1", "b2", "a1", "a2"].map(function (n) {
+      return "<span>" + n + " = <b>" + k[n].toFixed(4) + "</b></span>";
+    }).join("");
+    drawResponse(k, p);
+    drawSignals(k);
+  }
+  [bq.type, bq.f, bq.g, bq.w].forEach(function (el) { el.addEventListener("input", drawBiquad); });
+
+  /* audio demo */
+  var actx = null, src = null, strumCache = null;
+  function strum(fs) {
+    var len = Math.floor(fs * 2.5), out = new Float32Array(len);
+    var freqs = [82.41, 110, 146.83, 196, 246.94, 329.63], seed = 3;
+    function r() { seed = (seed * 16807) % 2147483647; return seed / 2147483647 * 2 - 1; }
+    freqs.forEach(function (f, s) {
+      var N = Math.round(fs / f), buf = new Float32Array(N), i;
+      for (i = 0; i < N; i++) buf[i] = r();
+      var idx = 0;
+      for (var n = Math.floor(s * 0.03 * fs); n < len; n++) {
+        var nx = (idx + 1) % N, v = buf[idx];
+        out[n] += v * 0.5;
+        buf[idx] = 0.996 * 0.5 * (v + buf[nx]);
+        idx = nx;
+      }
+    });
+    var fade = Math.floor(fs * 0.3);
+    for (var j = 0; j < fade; j++) out[len - 1 - j] *= j / fade;
+    return out;
+  }
+  function play(wet) {
+    var msg = document.getElementById("playMsg");
+    try {
+      if (!actx) actx = new (window.AudioContext || window.webkitAudioContext)();
+      if (actx.state === "suspended") actx.resume();
+      var fs = actx.sampleRate;
+      if (!strumCache || strumCache.fs !== fs) strumCache = { fs: fs, x: strum(fs) };
+      var x = strumCache.x, out = x, p = params(), i;
+      if (wet) out = runBiquad(coeffs(p.type, p.f0, p.gain, p.Q, fs), x);
+      var pk = 0;
+      for (i = 0; i < x.length; i++) pk = Math.max(pk, Math.abs(x[i]));
+      if (wet) for (i = 0; i < out.length; i++) pk = Math.max(pk, Math.abs(out[i]));
+      var norm = 0.8 / (pk || 1);
+      var b = actx.createBuffer(1, out.length, fs), d = b.getChannelData(0);
+      for (i = 0; i < out.length; i++) d[i] = out[i] * norm;
+      if (src) { try { src.stop(); } catch (e) {} }
+      src = actx.createBufferSource(); src.buffer = b; src.connect(actx.destination); src.start();
+      msg.textContent = wet ? "Playing through the filter as set above." : "Playing the unfiltered strum.";
+    } catch (e) {
+      msg.textContent = "Sound can't play in this view. Open the page in its own browser tab to hear it.";
+    }
+  }
+  document.getElementById("playDry").addEventListener("click", function () { play(false); });
+  document.getElementById("playWet").addEventListener("click", function () { play(true); });
+
+  /* ---------- convolution ---------- */
+  var conv = { len: document.getElementById("irLen"), blk: document.getElementById("blk"), canvas: document.getElementById("irCanvas"), fft: 233 };
+  function convCost(N, B) {
+    var M = 2 * B, P = Math.ceil(N / B);
+    var perBlock = 2 * 2.5 * M * Math.log2(M) + 8 * P * (M / 2 + 1);
+    return { fft: perBlock / B, P: P };
+  }
+  function drawIR(N, B, P) {
+    var c = setupCanvas(conv.canvas), ctx = c.ctx, W = c.w, H = c.h;
+    var ink = cssVar("--ink"), muted = cssVar("--muted"), line = cssVar("--line"), acc = cssVar("--accent"), acc2 = cssVar("--accent-2");
+    ctx.clearRect(0, 0, W, H);
+    var mid = H / 2 - 6, amp = H / 2 - 14, total = P * B;
+    function x(i) { return (i / total) * W; }
+    // seeded noise so the sketch is stable
+    var seed = 7; function rnd() { seed = (seed * 16807) % 2147483647; return seed / 2147483647 - 0.5; }
+    ctx.strokeStyle = acc; ctx.lineWidth = 1;
+    ctx.beginPath();
+    var step = Math.max(1, Math.floor(N / 600));
+    for (var i = 0; i < N; i += step) {
+      var env = Math.exp(-5 * i / N) * (i < N * 0.02 ? 1 : 0.8);
+      var v = rnd() * 2 * env * amp;
+      ctx.moveTo(x(i), mid); ctx.lineTo(x(i), mid - v);
+    }
+    ctx.stroke();
+    ctx.strokeStyle = muted; ctx.globalAlpha = 0.6; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(0, mid); ctx.lineTo(x(N), mid); ctx.stroke(); ctx.globalAlpha = 1;
+    if (P <= 160) {
+      ctx.strokeStyle = acc2; ctx.globalAlpha = 0.7;
+      for (var p = 1; p < P; p++) { ctx.beginPath(); ctx.moveTo(x(p * B), 4); ctx.lineTo(x(p * B), H - 22); ctx.stroke(); }
+      ctx.globalAlpha = 1;
+    }
+    ctx.fillStyle = muted; ctx.font = "11px 'IBM Plex Mono', monospace"; ctx.textAlign = "left";
+    ctx.fillText(P + (P === 1 ? " partition" : " partitions") + " of " + B + " samples", 0, H - 6);
+  }
+  function updateConv() {
+    var ms = +conv.len.value, B = +conv.blk.value, N = Math.round(ms * FS / 1000);
+    var r = convCost(N, B), direct = 2 * N;
+    conv.fft = r.fft;
+    document.getElementById("irLenOut").textContent = ms + " ms";
+    document.getElementById("cTaps").textContent = fmt(N);
+    document.getElementById("cDirect").textContent = fmt(direct);
+    document.getElementById("cFft").textContent = fmt(r.fft);
+    document.getElementById("cLat").textContent = (B / FS * 1000).toFixed(B / FS * 1000 < 10 ? 1 : 0) + " ms";
+    var pd = direct / DAISY * 100, pf = r.fft / DAISY * 100;
+    document.getElementById("bDirect").style.width = Math.min(100, pd) + "%";
+    document.getElementById("bFft").style.width = Math.min(100, pf) + "%";
+    document.getElementById("pDirect").textContent = pd > 100 ? ">100%" : pct(pd);
+    document.getElementById("pFft").textContent = pct(pf);
+    drawIR(N, B, r.P);
+    updateChain();
+  }
+  conv.len.addEventListener("input", updateConv);
+  conv.blk.addEventListener("input", updateConv);
+
+  /* ---------- chain budget ---------- */
+  var reverbOpts = [
+    { label: "Freeverb-style", ops: 110 },
+    { label: "Plate (Dattorro)", ops: 200 },
+    { label: "16-line FDN", ops: 400 },
+    { label: "High-end hall", ops: 2000 }
+  ];
+  var chainDef = [
+    { id: "eq", label: "EQ bands", on: true, ops: 10, count: 3, counts: [1, 2, 3, 4, 5, 6, 8, 10] },
+    { id: "comp", label: "Compressor", on: true, ops: 50 },
+    { id: "chorus", label: "Chorus", on: false, ops: 50 },
+    { id: "phaser", label: "Phaser", on: false, ops: 45 },
+    { id: "delay", label: "Delay", on: true, ops: 15 },
+    { id: "reverb", label: "Reverb", on: true, ops: 200, opts: reverbOpts, sel: 1 },
+    { id: "ir", label: "Body IR (from calculator)", on: true, ops: 0 }
+  ];
+  var chainEl = document.getElementById("chain");
+  chainDef.forEach(function (it) {
+    var row = document.createElement("div"); row.className = "chain-item"; row.id = "ci-" + it.id;
+    var extra = "";
+    if (it.counts) {
+      extra = '<select id="sel-' + it.id + '" aria-label="Number of EQ bands">' + it.counts.map(function (c) { return '<option value="' + c + '"' + (c === it.count ? " selected" : "") + ">× " + c + "</option>"; }).join("") + "</select>";
+    } else if (it.opts) {
+      extra = '<select id="sel-' + it.id + '" aria-label="Reverb type">' + it.opts.map(function (o, i) { return '<option value="' + i + '"' + (i === it.sel ? " selected" : "") + ">" + o.label + "</option>"; }).join("") + "</select>";
+    }
+    row.innerHTML = '<label for="chk-' + it.id + '"><input type="checkbox" id="chk-' + it.id + '"' + (it.on ? " checked" : "") + "> " + it.label + "</label>" +
+      '<span class="extra">' + extra + "</span>" + '<span class="n" id="ops-' + it.id + '"></span>';
+    chainEl.appendChild(row);
+    row.querySelector("input").addEventListener("change", function (e) { it.on = e.target.checked; updateChain(); });
+    var s = row.querySelector("select");
+    if (s) s.addEventListener("input", function (e) {
+      if (it.counts) it.count = +e.target.value; else { it.sel = +e.target.value; it.ops = it.opts[it.sel].ops; }
+      updateChain();
+    });
+  });
+  function updateChain() {
+    var total = 0;
+    chainDef.forEach(function (it) {
+      var v = it.id === "eq" ? it.ops * it.count : it.id === "ir" ? conv.fft : it.ops;
+      document.getElementById("ops-" + it.id).textContent = fmt(v);
+      document.getElementById("ci-" + it.id).classList.toggle("on", it.on);
+      if (it.on) total += v;
+    });
+    document.getElementById("chainTotal").textContent = fmt(total);
+    var pd = total / DAISY * 100, pp = total / PI * 100;
+    document.getElementById("bDaisy").style.width = Math.min(100, pd) + "%";
+    document.getElementById("bPi").style.width = Math.min(100, pp) + "%";
+    document.getElementById("pDaisy").textContent = pd > 100 ? ">100%" : pct(pd);
+    document.getElementById("pPi").textContent = pp > 100 ? ">100%" : pct(pp);
+    document.getElementById("chainNote").textContent = fmt(total) + " ops per sample × 48,000 samples per second ≈ " +
+      (total * FS / 1e6).toFixed(1) + " million operations per second. The Pi 5 has four cores, so the whole-chip share is a quarter of the Pi bar.";
+  }
+
+  function drawAll() { drawScale(); drawBiquad(); updateConv(); }
+  drawAll();
+  window.addEventListener("resize", function () { drawBiquad(); updateConv(); });
+  try {
+    window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", drawAll);
+    new MutationObserver(drawAll).observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
+  } catch (e) {}
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(drawAll);
+})();
+</script>
+</body>
+</html>

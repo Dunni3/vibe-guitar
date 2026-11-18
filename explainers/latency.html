@@ -1,0 +1,937 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Guitar FX Box Latency</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;700;800&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;1,400&display=swap" rel="stylesheet">
+<style>
+/* Layout idea: a lab notebook. Left-aligned prose column, wide figure panels that run live,
+   signal amber = audio path, teal = control path, red = dropouts. */
+:root {
+  --bg: #eef0f3;
+  --panel: #ffffff;
+  --ink: #1a2130;
+  --mute: #5a6375;
+  --rule: #d6dbe3;
+  --signal: #c25e00;
+  --control: #0b7c84;
+  --p2: #6b4fe0;
+  --p3: #b0336f;
+  --bad: #c62f2f;
+  --good: #2f8a49;
+  --display: "Archivo", "Helvetica Neue", Arial, sans-serif;
+  --body: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #10141b;
+    --panel: #171d27;
+    --ink: #e6e9ef;
+    --mute: #98a1b3;
+    --rule: #2a3242;
+    --signal: #f29b38;
+    --control: #42c3cb;
+    --p2: #a891ff;
+    --p3: #ef7fb5;
+    --bad: #ff6b6b;
+    --good: #6cc784;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #10141b;
+  --panel: #171d27;
+  --ink: #e6e9ef;
+  --mute: #98a1b3;
+  --rule: #2a3242;
+  --signal: #f29b38;
+  --control: #42c3cb;
+  --p2: #a891ff;
+  --p3: #ef7fb5;
+  --bad: #ff6b6b;
+  --good: #6cc784;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body {
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--body);
+  font-size: 17px;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+}
+main {
+  max-width: 1000px;
+  margin: 0 auto;
+  padding: 48px 24px 80px;
+  display: grid;
+  gap: 56px;
+}
+@media (max-width: 520px) { main { padding: 28px 16px 60px; gap: 44px; } body { font-size: 16px; } }
+
+h1, h2, h3 { font-family: var(--display); text-wrap: balance; margin: 0; letter-spacing: -0.01em; }
+h1 { font-size: clamp(34px, 6vw, 54px); font-weight: 800; line-height: 1.05; }
+h2 { font-size: clamp(24px, 3.4vw, 32px); font-weight: 700; line-height: 1.15; }
+h3 { font-size: 17px; font-weight: 700; line-height: 1.3; }
+p { margin: 0; max-width: 68ch; }
+.prose { display: grid; gap: 14px; }
+.lede { font-size: 1.12em; color: var(--ink); max-width: 62ch; }
+.mute { color: var(--mute); }
+.num, .mono { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+.kicker {
+  font-family: var(--mono);
+  font-size: 13px;
+  color: var(--mute);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  display: flex; gap: 10px; align-items: center;
+}
+.kicker b { color: var(--signal); font-weight: 500; }
+.sw { display: inline-block; width: 10px; height: 10px; border-radius: 2px; vertical-align: baseline; margin-right: 4px; }
+.sig { color: var(--signal); font-weight: 600; }
+.ctl { color: var(--control); font-weight: 600; }
+.badc { color: var(--bad); font-weight: 600; }
+
+header { display: grid; gap: 18px; }
+.two-up {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 8px; max-width: 820px;
+}
+@media (max-width: 640px) { .two-up { grid-template-columns: 1fr; } }
+.def {
+  background: var(--panel);
+  border: 1px solid var(--rule);
+  border-radius: 10px;
+  padding: 16px 18px;
+  display: grid; gap: 6px;
+}
+.def.a { border-top: 3px solid var(--signal); }
+.def.c { border-top: 3px solid var(--control); }
+.def .big { font-family: var(--mono); font-size: 22px; font-weight: 500; }
+
+section { display: grid; gap: 20px; }
+.fig {
+  background: var(--panel);
+  border: 1px solid var(--rule);
+  border-radius: 12px;
+  padding: 16px;
+  display: grid;
+  gap: 14px;
+}
+.fig canvas { width: 100%; display: block; }
+.controls { display: flex; flex-wrap: wrap; gap: 12px 22px; align-items: center; }
+.ctrl { display: flex; align-items: center; gap: 10px; font-size: 14px; color: var(--mute); }
+.ctrl label { white-space: nowrap; }
+.ctrl output { font-family: var(--mono); color: var(--ink); min-width: 6ch; font-variant-numeric: tabular-nums; }
+input[type=range] { accent-color: var(--signal); width: 180px; }
+@media (max-width: 520px) { input[type=range] { width: 130px; } }
+.seg { display: inline-flex; border: 1px solid var(--rule); border-radius: 8px; overflow: hidden; }
+.seg button {
+  font: 500 13px var(--mono); color: var(--ink); background: transparent;
+  border: 0; padding: 7px 11px; cursor: pointer; border-right: 1px solid var(--rule);
+}
+.seg button:last-child { border-right: 0; }
+.seg button[aria-pressed="true"] { background: var(--ink); color: var(--panel); }
+.btn {
+  font: 600 14px var(--body); color: var(--ink); background: var(--bg);
+  border: 1px solid var(--rule); border-radius: 8px; padding: 8px 14px; cursor: pointer;
+}
+.btn:hover { border-color: var(--mute); }
+.btn.primary { background: var(--signal); border-color: var(--signal); color: var(--panel); }
+.chip {
+  font: 500 13px var(--body); border: 1.5px solid var(--rule); border-radius: 999px;
+  padding: 6px 12px; background: transparent; color: var(--ink); cursor: pointer;
+  display: inline-flex; align-items: center; gap: 6px;
+}
+.chip[aria-pressed="true"] { border-color: currentColor; }
+.chip .dot { width: 9px; height: 9px; border-radius: 50%; background: currentColor; }
+.toggle { display: inline-flex; align-items: center; gap: 8px; font-size: 14px; color: var(--ink); cursor: pointer; }
+.toggle input { accent-color: var(--control); width: 16px; height: 16px; }
+button:focus-visible, input:focus-visible { outline: 2px solid var(--control); outline-offset: 2px; }
+.readouts { display: flex; flex-wrap: wrap; gap: 10px 28px; font-size: 14px; color: var(--mute); }
+.readouts b { font-family: var(--mono); font-weight: 500; color: var(--ink); font-variant-numeric: tabular-nums; }
+.caption { font-size: 14px; color: var(--mute); max-width: 80ch; }
+
+/* budget bars */
+.budget { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.3fr); gap: 22px; }
+@media (max-width: 720px) { .budget { grid-template-columns: 1fr; } }
+.fxlist { display: grid; gap: 4px; }
+.fxrow {
+  display: grid; grid-template-columns: 20px 1fr auto; gap: 8px; align-items: center;
+  font-size: 14px; padding: 5px 6px; border-radius: 6px; cursor: pointer;
+}
+.fxrow:hover { background: var(--bg); }
+.fxrow input { accent-color: var(--signal); width: 16px; height: 16px; margin: 0; }
+.fxrow .c { font-family: var(--mono); color: var(--mute); font-size: 13px; font-variant-numeric: tabular-nums; }
+.bars { display: grid; gap: 18px; align-content: start; }
+.bar-label { display: flex; justify-content: space-between; gap: 12px; font-size: 14px; margin-bottom: 6px; flex-wrap: wrap; }
+.bar-label span:last-child { font-family: var(--mono); color: var(--mute); font-variant-numeric: tabular-nums; }
+.track {
+  position: relative; height: 26px; border-radius: 6px; background: var(--bg);
+  border: 1px solid var(--rule); overflow: hidden; display: flex;
+}
+.track .seg-fill { height: 100%; transition: width .35s ease; border-right: 1px solid var(--panel); }
+.track .over { position: absolute; inset: 0; background: repeating-linear-gradient(45deg, transparent 0 6px, color-mix(in srgb, var(--bad) 35%, transparent) 6px 12px); display: none; }
+.track .mark { position: absolute; top: -2px; bottom: -2px; width: 0; border-left: 2px dashed var(--mute); }
+.budget-note { font-size: 14px; color: var(--mute); }
+.big-num { font-family: var(--mono); font-size: 28px; color: var(--ink); font-variant-numeric: tabular-nums; }
+
+/* decisions */
+.decisions { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 14px; }
+.card {
+  background: var(--panel); border: 1px solid var(--rule); border-radius: 10px;
+  padding: 16px 18px; display: grid; gap: 8px; align-content: start; border-left: 4px solid var(--signal);
+}
+.card.c { border-left-color: var(--control); }
+.card.b { border-left-color: var(--bad); }
+.card.g { border-left-color: var(--good); }
+.card .from { font-size: 13px; font-family: var(--mono); color: var(--mute); }
+.card p { font-size: 15px; }
+.aside {
+  border: 1px dashed var(--rule); border-radius: 10px; padding: 14px 18px; font-size: 15px; color: var(--mute);
+}
+.aside strong { color: var(--ink); }
+footer { font-size: 13px; color: var(--mute); max-width: 80ch; }
+</style>
+</head>
+<body>
+<main>
+
+<header>
+  <div class="kicker">Guitar FX box · design notes</div>
+  <h1>Where the milliseconds go</h1>
+  <p class="lede">Your Pi 5 + Pisound box has two kinds of delay. One is paid on every note you play. The other is paid only when you change the sound. Most of our design decisions come from treating them very differently.</p>
+  <div class="two-up">
+    <div class="def a">
+      <div class="kicker"><b>Audio latency</b></div>
+      <div class="big">pluck → speaker</div>
+      <p class="mute" style="font-size:15px">Every sample of your playing goes through the box. Presets don't avoid this: the box transforms live sound, it never plays back a finished one. Target: under about 10 ms.</p>
+    </div>
+    <div class="def c">
+      <div class="kicker"><b style="color:var(--control)">Control latency</b></div>
+      <div class="big">tap preset → new sound</div>
+      <p class="mute" style="font-size:15px">Your web app tells the box to switch effects. Nothing waits on this, so 100 ms or even a full second is fine.</p>
+    </div>
+  </div>
+</header>
+
+<!-- 1 -->
+<section id="paths">
+  <div class="prose">
+    <div class="kicker">01 · The two paths</div>
+    <h2>Audio moves in blocks; control is a slow side channel</h2>
+    <p>The converter turns your signal into samples, and the box gathers them into a <em>buffer</em> (a block of, say, 128 samples). Your effect code runs once per block, then the processed block plays out while the next one fills. That's why the delay is roughly <span class="mono">two buffers + about 1 ms of converters</span>.</p>
+    <p>Pluck a note and watch it go. Then switch presets: the <span class="ctl">teal packet</span> takes its time, and the <span class="sig">audio</span> never stops to wait for it.</p>
+  </div>
+  <div class="fig">
+    <canvas id="cv1" height="272" role="img" aria-label="Animation of samples flowing from guitar through converter, input buffer, effect, output buffer and converter to the amp, with a separate control path from a web app to the effect."></canvas>
+    <div class="controls">
+      <div class="ctrl"><span>Buffer</span>
+        <div class="seg" id="buf1" role="group" aria-label="Buffer size for path animation">
+          <button type="button" data-n="32" aria-pressed="false">32</button>
+          <button type="button" data-n="64" aria-pressed="false">64</button>
+          <button type="button" data-n="128" aria-pressed="true">128</button>
+          <button type="button" data-n="256" aria-pressed="false">256</button>
+        </div>
+      </div>
+      <button type="button" class="btn primary" id="pluck">Pluck a note</button>
+      <div class="ctrl"><span>Preset</span>
+        <button type="button" class="chip" data-p="0" aria-pressed="true" style="color:var(--signal)"><span class="dot"></span>Clean</button>
+        <button type="button" class="chip" data-p="1" aria-pressed="false" style="color:var(--p2)"><span class="dot"></span>Shimmer</button>
+        <button type="button" class="chip" data-p="2" aria-pressed="false" style="color:var(--p3)"><span class="dot"></span>Tape echo</button>
+      </div>
+    </div>
+    <div class="readouts">
+      <span>One buffer: <b id="r1buf">2.67 ms</b></span>
+      <span>Pluck to speaker: <b id="r1lat">6.33 ms</b></span>
+      <span>Last pluck: <b id="r1pluck">not yet</b></span>
+    </div>
+    <p class="caption">The audio path runs 400× slower than real life so you can see the blocks. The control packet is drawn sped up: a real hop from your phone takes tens to hundreds of milliseconds, which at this slow-motion scale would be over a minute.</p>
+  </div>
+</section>
+
+<!-- 2 -->
+<section id="distance">
+  <div class="prose">
+    <div class="kicker">02 · How much it matters</div>
+    <h2>A millisecond is about a foot of distance</h2>
+    <p>Sound travels about 1.1 feet per millisecond, so latency feels like standing farther from your amp. Players stand a few feet from amps all the time, so a few milliseconds is invisible. The thresholds below are rough and vary by player.</p>
+  </div>
+  <div class="fig">
+    <canvas id="cv2" height="210" role="img" aria-label="A player and an amp; the distance between them grows with the latency slider."></canvas>
+    <div class="controls">
+      <div class="ctrl"><label for="ms2">Latency</label><input type="range" id="ms2" min="0" max="30" step="0.1" value="6.3"><output id="o2">6.3 ms</output></div>
+    </div>
+    <div class="readouts">
+      <span>Feels like standing <b id="r2ft">7.1 ft</b> from the amp</span>
+      <span>Verdict: <b id="r2zone">fine for most playing</b></span>
+    </div>
+  </div>
+</section>
+
+<!-- 3 -->
+<section id="acoustic">
+  <div class="prose">
+    <div class="kicker">03 · The acoustic wrinkle</div>
+    <h2>Your guitar is making sound too</h2>
+    <p>With an electric, the amp is all you hear. With an acoustic, the body sound reaches your ears directly, and the amp's slightly late copy adds to it. Adding a delayed copy of a sound to itself cancels some frequencies and boosts others. That's called comb filtering, and it sounds hollow or phasey.</p>
+    <p>Small delays carve a few wide dips into the tone. Larger delays pack the dips closer together, and past roughly 15 ms your ear stops hearing a tone change and starts hearing a separate echo (slapback). Turning the amp up relative to the guitar makes the dips shallower.</p>
+  </div>
+  <div class="fig">
+    <canvas id="cv3" height="260" role="img" aria-label="Frequency response of the guitar's direct sound plus the delayed amp sound, showing comb-filter dips."></canvas>
+    <div class="controls">
+      <div class="ctrl"><label for="d3">Amp delay</label><input type="range" id="d3" min="0.3" max="25" step="0.1" value="6.3"><output id="o3d">6.3 ms</output></div>
+      <div class="ctrl"><label for="g3">Amp vs. guitar body</label><input type="range" id="g3" min="0.1" max="1" step="0.01" value="0.7"><output id="o3g">0.70</output></div>
+    </div>
+    <div class="readouts">
+      <span>First dip: <b id="r3notch">79 Hz</b></span>
+      <span>Dips every: <b id="r3space">159 Hz</b></span>
+      <span>Deepest dip: <b id="r3depth">−10.5 dB</b></span>
+    </div>
+    <p class="caption">The curve is what reaches your ear: the direct sound plus the amp's copy at the chosen delay and relative level. 0 dB means unchanged. At a louder amp volume the amp dominates and the dips flatten out, which is why this is rarely a dealbreaker.</p>
+  </div>
+</section>
+
+<!-- 4 -->
+<section id="budget">
+  <div class="prose">
+    <div class="kicker">04 · Is a Pi 5 enough?</div>
+    <h2>The compute budget, per sample</h2>
+    <p>At 48,000 samples per second, one Pi 5 core running at 2.4 GHz gets about <span class="mono">50,000</span> clock cycles per sample. Tick effects on and off to build a chain and see how much of one core it uses. The costs are rough ballpark figures for illustration; real numbers depend on the implementation.</p>
+  </div>
+  <div class="fig">
+    <div class="budget">
+      <div class="fxlist" id="fxlist"></div>
+      <div class="bars">
+        <div>
+          <div class="bar-label"><span>One Pi 5 core (2.4 GHz)</span><span id="piText">0 / 50,000 cycles</span></div>
+          <div class="track" id="piTrack"><div class="mark" style="left:70%" title="70% safety line"></div><div class="over"></div></div>
+        </div>
+        <div>
+          <div class="bar-label"><span>Daisy Seed (480 MHz), same scale</span><span id="daisyText">0 / 10,000 cycles</span></div>
+          <div class="track" id="daisyTrack" style="width:20%; min-width:90px"><div class="over"></div></div>
+        </div>
+        <div>
+          <div class="big-num" id="loadBig">6%</div>
+          <div class="budget-note">of one core. The dashed line marks 70%: staying under it leaves time to absorb hiccups. You also have three more cores for the web app.</div>
+        </div>
+        <div><button type="button" class="btn" id="sendLoad">Use this load in the dropout simulator ↓</button></div>
+      </div>
+    </div>
+    <p class="caption">The Daisy bar is drawn on the same cycle scale. The real gap is even bigger: a Pi 5 core does more work per clock cycle than the Daisy's microcontroller core.</p>
+  </div>
+</section>
+
+<!-- 5 -->
+<section id="deadlines">
+  <div class="prose">
+    <div class="kicker">05 · Where clicks come from</div>
+    <h2>Clicks are missed deadlines, not slow math</h2>
+    <p>Each block has to be finished before the previous one runs out, so every buffer is a deadline. Your effect usually needs a small slice of that time. Clicks happen when something else grabs the CPU right as a block should start: the web server, Wi-Fi, disk writes. If the hiccup lasts longer than the slack you have left, the speaker runs dry. You hear that as a <span class="badc">click</span>.</p>
+    <p>Two fixes: a bigger buffer gives more slack per deadline (at the cost of latency), and a real-time kernel lets the audio thread jump ahead of everything else. Try the defaults, then flip one at a time.</p>
+  </div>
+  <div class="fig">
+    <canvas id="cv5" height="230" role="img" aria-label="Scrolling timeline of audio blocks and deadlines, with background interruptions; missed deadlines are marked in red."></canvas>
+    <div class="controls">
+      <div class="ctrl"><span>Buffer</span>
+        <div class="seg" id="buf5" role="group" aria-label="Buffer size for dropout simulator">
+          <button type="button" data-n="32" aria-pressed="false">32</button>
+          <button type="button" data-n="64" aria-pressed="true">64</button>
+          <button type="button" data-n="128" aria-pressed="false">128</button>
+          <button type="button" data-n="256" aria-pressed="false">256</button>
+        </div>
+      </div>
+      <div class="ctrl"><label for="load5">Effect load</label><input type="range" id="load5" min="5" max="98" step="1" value="35"><output id="o5load">35%</output></div>
+      <label class="toggle"><input type="checkbox" id="busy5" checked> Heavy background work (big UI updates, Wi-Fi scans)</label>
+      <label class="toggle"><input type="checkbox" id="rt5"> Real-time kernel</label>
+    </div>
+    <div class="readouts">
+      <span>Latency: <b id="r5lat">3.67 ms</b></span>
+      <span>Slack per block: <b id="r5slack">0.83 ms</b></span>
+      <span>Clicks: <b id="r5rate">…</b></span>
+    </div>
+    <p class="caption">Illustrative model with made-up but plausible hiccup rates. The trade-offs it shows are real; the exact counts aren't. The timeline runs 30× slower than real time, and the click rate comes from simulating minutes of playing in the background.</p>
+  </div>
+</section>
+
+<!-- 6 -->
+<section id="decisions">
+  <div class="prose">
+    <div class="kicker">06 · What this means for the build</div>
+    <h2>How each idea shaped a decision</h2>
+  </div>
+  <div class="decisions">
+    <div class="card">
+      <div class="from">Every note pays the audio latency</div>
+      <h3>Pisound HAT on the Pi's pins, no USB interface</h3>
+      <p>Audio goes straight to the Pi over I2S, skipping the USB stack and its extra buffering. Start at 128 samples, about 6 ms from pluck to speaker.</p>
+    </div>
+    <div class="card c">
+      <div class="from">Changing sounds is cheap</div>
+      <h3>A web app that's allowed to be slow</h3>
+      <p>Presets and knob changes travel over WebSockets from your phone. A second to switch sounds is fine, so the UI can be as fancy as you like without touching the audio.</p>
+    </div>
+    <div class="card">
+      <div class="from">Your guitar is also making sound</div>
+      <h3>Stay under about 10 ms</h3>
+      <p>Keep the amp's copy close behind the guitar body. If the blend sounds hollow at 128, try 64 before blaming the effect.</p>
+    </div>
+    <div class="card b">
+      <div class="from">Clicks come from missed deadlines</div>
+      <h3>Raise the buffer first, tune the kernel second</h3>
+      <p>Going from 64 to 128 costs about 3 ms and buys a lot of slack. Reach for the real-time kernel and CPU pinning only if you still hear clicks.</p>
+    </div>
+    <div class="card b">
+      <div class="from">Heat causes missed deadlines too</div>
+      <h3>Active cooler on the Pi 5</h3>
+      <p>A CPU that throttles mid-song suddenly does less work per block. Keeping it cool keeps the effect load where you measured it.</p>
+    </div>
+    <div class="card g">
+      <div class="from">Expensive work can happen ahead of time</div>
+      <h3>Precompute, then run cheap</h3>
+      <p>Impulse responses, filter designs and AI-written effects are prepared offline. Only the per-sample loop runs live, and a Pi 5 core has plenty of room for it.</p>
+    </div>
+  </div>
+  <div class="aside"><strong>Not a latency issue, but don't forget it:</strong> the Pisound's input is about 100 kΩ, which is low for a passive piezo pickup and will make it sound thin. If your acoustic has no battery-powered preamp, put a small preamp or DI pedal in front of the box.</div>
+</section>
+
+<footer>Model used throughout: round-trip latency ≈ 2 × buffer ÷ 48 kHz + ~1 ms of converters. Real interfaces add a little of their own, so measure yours with a loopback cable once it's built.</footer>
+</main>
+
+<script>
+(() => {
+  const $ = id => document.getElementById(id);
+  const RM = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const FS = 48; // samples per ms
+  const lat = n => 2 * n / FS + 1;
+  const lerp = (a, b, t) => a + (b - a) * t;
+  const ease = t => t < 0 ? 0 : t > 1 ? 1 : t * t * (3 - 2 * t);
+  const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+  const fmt = (v, d = 2) => v.toFixed(d);
+
+  // ---- theme tokens
+  let T = {};
+  function readTokens() {
+    const s = getComputedStyle(document.documentElement);
+    for (const k of ['bg','panel','ink','mute','rule','signal','control','p2','p3','bad','good']) T[k] = s.getPropertyValue('--' + k).trim();
+    T.mono = '500 12px "IBM Plex Mono", ui-monospace, monospace';
+    T.monoS = '400 11px "IBM Plex Mono", ui-monospace, monospace';
+    T.sans = '600 13px "IBM Plex Sans", system-ui, sans-serif';
+    T.sansS = '400 12px "IBM Plex Sans", system-ui, sans-serif';
+  }
+  readTokens();
+  const redrawAll = () => { readTokens(); figs.forEach(f => f.draw()); };
+  new MutationObserver(redrawAll).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+  matchMedia('(prefers-color-scheme: dark)').addEventListener('change', redrawAll);
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(redrawAll);
+
+  function alpha(hex, a) {
+    if (!hex.startsWith('#')) return hex;
+    let h = hex.slice(1); if (h.length === 3) h = h.split('').map(c => c + c).join('');
+    const n = parseInt(h, 16);
+    return `rgba(${n >> 16 & 255},${n >> 8 & 255},${n & 255},${a})`;
+  }
+
+  function canvasFig(cv, draw) {
+    const f = { cv, ctx: cv.getContext('2d'), w: 0, h: 0, visible: true };
+    const baseH = parseFloat(cv.getAttribute('height'));
+    f.resize = () => {
+      const dpr = window.devicePixelRatio || 1;
+      const r = cv.getBoundingClientRect();
+      const h = baseH;
+      f.w = r.width; f.h = h;
+      cv.style.height = h + 'px';
+      cv.width = Math.round(r.width * dpr); cv.height = Math.round(h * dpr);
+      f.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    };
+    f.draw = () => { if (f.w > 0) draw(f.ctx, f.w, f.h); };
+    new ResizeObserver(() => { f.resize(); f.draw(); }).observe(cv);
+    if ('IntersectionObserver' in window) new IntersectionObserver(es => es.forEach(e => f.visible = e.isIntersecting)).observe(cv);
+    f.resize();
+    return f;
+  }
+  function rrect(ctx, x, y, w, h, r) {
+    ctx.beginPath(); ctx.moveTo(x + r, y); ctx.arcTo(x + w, y, x + w, y + h, r); ctx.arcTo(x + w, y + h, x, y + h, r);
+    ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath();
+  }
+  function segGroup(el, cb) {
+    el.querySelectorAll('button').forEach(b => b.addEventListener('click', () => {
+      el.querySelectorAll('button').forEach(x => x.setAttribute('aria-pressed', String(x === b)));
+      cb(+b.dataset.n);
+    }));
+  }
+
+  // =========================================================
+  // FIG 1: two paths
+  // =========================================================
+  const S1 = { N: 128, tau: 40, slow: 400, DS: 1 / 3, pluckS: null, pluckDone: false,
+    changes: [{ tau: -1e9, p: 0 }], packet: null, preset: 0 };
+  const presetColor = p => [T.signal, T.p2, T.p3][p];
+  function presetAt(be) { let p = 0; for (const c of S1.changes) if (c.tau <= be) p = c.p; return p; }
+
+  function layout1(w) {
+    const L = {}; const m = 12; const W = w - 2 * m;
+    const parts = [['g', .075], ['gap', .02], ['adc', .085], ['gap', .02], ['in', .2], ['gap', .02], ['fx', .12], ['gap', .02], ['out', .2], ['gap', .02], ['dac', .085], ['gap', .02], ['amp', .085]];
+    const tot = parts.reduce((s, p) => s + p[1], 0);
+    let x = m;
+    for (const [k, f] of parts) { const ww = W * f / tot; if (k !== 'gap') L[k] = [x, x + ww]; x += ww; }
+    L.y = 92; L.bh = 56;
+    return L;
+  }
+
+  function dotPos(s, tau, L, P) {
+    const age = tau - s; if (age < 0) return null;
+    const adc = 0.5, DS = S1.DS;
+    if (age < adc) return { x: lerp(L.g[1], L.in[0], age / adc), st: 'raw' };
+    const a = s + adc;
+    const bs = Math.floor(a / P + 1e-9) * P, off = a - bs, be = bs + P;
+    const frac = clamp(1 - (off + DS / 2) / P, 0, 1);
+    const pad = 8;
+    const xin = L.in[0] + pad + frac * (L.in[1] - L.in[0] - 2 * pad);
+    const xout = L.out[0] + pad + frac * (L.out[1] - L.out[0] - 2 * pad);
+    if (tau < be) { const settle = Math.max(0.05, Math.min(0.3, be - a)); return { x: lerp(L.in[0], xin, ease((tau - a) / settle)), st: 'raw' }; }
+    const mv = 0.25 * P;
+    if (tau < be + mv) { const x = lerp(xin, xout, ease((tau - be) / mv)); return { x, st: x > (L.fx[0] + L.fx[1]) / 2 ? 'fx' : 'raw', be }; }
+    const leave = be + P + off;
+    if (tau < leave) return { x: xout, st: 'fx', be };
+    if (tau < leave + adc) return { x: lerp(xout, L.amp[0], (tau - leave) / adc), st: 'fx', be };
+    return { done: true, be, arrive: leave + adc };
+  }
+
+  function box(ctx, x0, x1, y, h, label, sub, stroke, fill) {
+    rrect(ctx, x0, y - h / 2, x1 - x0, h, 7);
+    ctx.fillStyle = fill || T.bg; ctx.fill();
+    ctx.lineWidth = 1.5; ctx.strokeStyle = stroke || T.rule; ctx.stroke();
+    ctx.fillStyle = T.ink; ctx.font = T.sans; ctx.textAlign = 'center';
+    ctx.fillText(label, (x0 + x1) / 2, y - h / 2 - 22);
+    if (sub) { ctx.fillStyle = T.mute; ctx.font = T.monoS; ctx.fillText(sub, (x0 + x1) / 2, y - h / 2 - 8); }
+  }
+
+  const fig1 = canvasFig($('cv1'), (ctx, w, h) => {
+    ctx.clearRect(0, 0, w, h);
+    const L = layout1(w), P = S1.N / FS, y = L.y, bh = L.bh, narrow = w < 560;
+    ctx.textBaseline = 'alphabetic';
+    // lane labels
+    ctx.font = T.monoS; ctx.textAlign = 'left'; ctx.fillStyle = T.signal;
+    ctx.fillText('AUDIO PATH · every sample, always', 12, 16);
+    // wire
+    ctx.strokeStyle = T.rule; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(L.g[1], y); ctx.lineTo(L.amp[0], y); ctx.stroke();
+    // boxes
+    const curP = S1.preset;
+    box(ctx, L.adc[0], L.adc[1], y, bh, narrow ? 'ADC' : 'In conv.', '0.5 ms');
+    box(ctx, L.in[0], L.in[1], y, bh, narrow ? 'In buf' : 'Input buffer', narrow ? `${fmt(P)} ms` : `${S1.N} smp · ${fmt(P)} ms`);
+    box(ctx, L.fx[0], L.fx[1], y, bh, 'Effect', ['clean', 'shimmer', 'tape'][curP], presetColor(curP), alpha(presetColor(curP), 0.1));
+    box(ctx, L.out[0], L.out[1], y, bh, narrow ? 'Out buf' : 'Output buffer', narrow ? `${fmt(P)} ms` : `${S1.N} smp · ${fmt(P)} ms`);
+    box(ctx, L.dac[0], L.dac[1], y, bh, narrow ? 'DAC' : 'Out conv.', '0.5 ms');
+    // guitar icon
+    const gx = (L.g[0] + L.g[1]) / 2;
+    ctx.fillStyle = alpha(T.ink, 0.12); ctx.strokeStyle = T.ink; ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.ellipse(gx - 2, y + 6, 11, 14, 0, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(gx + 2, y - 4); ctx.lineTo(gx + 14, y - 24); ctx.stroke();
+    ctx.fillStyle = T.ink; ctx.font = T.sans; ctx.textAlign = 'center'; ctx.fillText('Guitar', gx, y - bh / 2 - 22);
+    // amp
+    const ax0 = L.amp[0], ax1 = L.amp[1];
+    let flash = 0;
+    rrect(ctx, ax0, y - bh / 2, ax1 - ax0, bh, 6); ctx.fillStyle = T.ink; ctx.fill();
+    ctx.beginPath(); ctx.arc((ax0 + ax1) / 2, y + 4, Math.min(16, (ax1 - ax0) / 2 - 5), 0, Math.PI * 2);
+    ctx.fillStyle = T.panel; ctx.fill();
+    ctx.fillStyle = T.ink; ctx.font = T.sans; ctx.fillText('Amp', (ax0 + ax1) / 2, y - bh / 2 - 22);
+
+    // dots
+    const tau = S1.tau, Ltot = lat(S1.N);
+    const kMin = Math.floor((tau - Ltot - 2) / S1.DS), kMax = Math.floor(tau / S1.DS);
+    let pluckInfo = null;
+    for (let k = kMin; k <= kMax; k++) {
+      const s = k * S1.DS; const p = dotPos(s, tau, L, P); if (!p) continue;
+      const isPluck = S1.pluckS !== null && Math.abs(s - S1.pluckS) < 1e-6;
+      if (p.done) { if (tau - p.arrive < 0.6) flash = Math.max(flash, 1 - (tau - p.arrive) / 0.6); if (isPluck) pluckInfo = p; continue; }
+      const col = p.st === 'raw' ? T.mute : presetColor(presetAt(p.be));
+      ctx.beginPath(); ctx.arc(p.x, y, isPluck ? 7 : 4, 0, Math.PI * 2); ctx.fillStyle = col; ctx.fill();
+      if (isPluck) { ctx.lineWidth = 2; ctx.strokeStyle = T.ink; ctx.stroke(); pluckInfo = p; }
+    }
+    if (flash > 0) {
+      ctx.strokeStyle = alpha(T.ink, 0.5 * flash); ctx.lineWidth = 2;
+      for (let i = 1; i <= 2; i++) { ctx.beginPath(); ctx.arc(ax1, y, 10 + i * 8 * (1.3 - flash), -0.9, 0.9); ctx.stroke(); }
+    }
+    // block deadline progress inside input buffer
+    const aNow = tau - 0.5, fill = ((aNow % P) + P) % P / P;
+    ctx.fillStyle = alpha(T.signal, 0.5); ctx.fillRect(L.in[0] + 6, y + bh / 2 - 7, (L.in[1] - L.in[0] - 12) * fill, 3);
+
+    // control lane
+    const cy = 238, wx0 = L.fx[0] - 10, wx1 = L.fx[1] + 10;
+    ctx.font = T.monoS; ctx.textAlign = 'left'; ctx.fillStyle = T.control;
+    ctx.fillText('CONTROL PATH · only when you change something', 12, 196);
+    ctx.setLineDash([4, 4]); ctx.strokeStyle = T.control; ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.moveTo((L.fx[0] + L.fx[1]) / 2, cy - 18); ctx.lineTo((L.fx[0] + L.fx[1]) / 2, y + bh / 2 + 2); ctx.stroke();
+    ctx.setLineDash([]);
+    rrect(ctx, wx0, cy - 18, wx1 - wx0, 36, 7); ctx.fillStyle = alpha(T.control, 0.1); ctx.fill(); ctx.strokeStyle = T.control; ctx.stroke();
+    ctx.fillStyle = T.ink; ctx.font = T.sans; ctx.textAlign = 'center'; ctx.fillText(narrow ? 'Web app' : 'Web app (phone)', (wx0 + wx1) / 2, cy + 5);
+    ctx.font = T.monoS; ctx.fillStyle = T.mute; ctx.textAlign = 'left';
+    if (!narrow) ctx.fillText('WebSocket · 50–300 ms is fine', wx1 + 12, cy + 4);
+    if (S1.packet) {
+      const u = ease(S1.packet.t / S1.packet.dur);
+      const px = (L.fx[0] + L.fx[1]) / 2, py = lerp(cy - 18, y + bh / 2 + 4, u);
+      ctx.beginPath(); rrect(ctx, px - 9, py - 6, 18, 12, 3); ctx.fillStyle = T.control; ctx.fill();
+    }
+  });
+
+  function updateR1() {
+    const P = S1.N / FS;
+    $('r1buf').textContent = fmt(P) + ' ms';
+    $('r1lat').textContent = fmt(lat(S1.N)) + ' ms';
+  }
+  segGroup($('buf1'), n => { S1.N = n; S1.pluckS = null; $('r1pluck').textContent = 'not yet'; updateR1(); fig1.draw(); });
+  $('pluck').addEventListener('click', () => {
+    if (RM) { $('r1pluck').textContent = fmt(lat(S1.N)) + ' ms'; return; }
+    S1.pluckS = Math.ceil(S1.tau / S1.DS + 1e-6) * S1.DS; S1.pluckDone = false;
+    $('r1pluck').textContent = 'travelling…';
+  });
+  document.querySelectorAll('.chip').forEach(c => c.addEventListener('click', () => {
+    const p = +c.dataset.p;
+    document.querySelectorAll('.chip').forEach(x => x.setAttribute('aria-pressed', String(x === c)));
+    if (RM) { S1.preset = p; S1.changes.push({ tau: S1.tau, p }); fig1.draw(); return; }
+    S1.packet = { t: 0, dur: 1100, p };
+  }));
+  function tick1(dt) {
+    S1.tau += dt / S1.slow;
+    if (S1.packet) {
+      S1.packet.t += dt;
+      if (S1.packet.t >= S1.packet.dur) { S1.preset = S1.packet.p; S1.changes.push({ tau: S1.tau, p: S1.packet.p }); if (S1.changes.length > 12) S1.changes.splice(1, 1); S1.packet = null; }
+    }
+    if (S1.pluckS !== null && !S1.pluckDone) {
+      const el = S1.tau - S1.pluckS;
+      if (el >= lat(S1.N)) { S1.pluckDone = true; $('r1pluck').textContent = fmt(lat(S1.N)) + ' ms'; }
+      else if (el > 0) $('r1pluck').textContent = fmt(el) + ' ms…';
+    }
+  }
+  updateR1();
+
+  // =========================================================
+  // FIG 2: distance
+  // =========================================================
+  const S2 = { ms: 6.3, t: 0 };
+  const zones = [[0, 5, 'feels instant', 'good'], [5, 10, 'fine for most playing', 'good'], [10, 20, 'some players feel it', 'signal'], [20, 30, 'feels like the amp lags', 'bad']];
+  const zoneOf = ms => zones.find(z => ms < z[1]) || zones[3];
+  const fig2 = canvasFig($('cv2'), (ctx, w, h) => {
+    ctx.clearRect(0, 0, w, h);
+    const m = 20, x0 = m + 30, x1 = w - m - 30, gy = 112;
+    const ftMax = 30 * 1.125, ppf = (x1 - x0) / ftMax;
+    const ft = S2.ms * 1.125, ax = x0 + ft * ppf;
+    // ground
+    ctx.strokeStyle = T.rule; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.moveTo(m, gy); ctx.lineTo(w - m, gy); ctx.stroke();
+    // feet ticks
+    ctx.fillStyle = T.mute; ctx.font = T.monoS; ctx.textAlign = 'center';
+    for (let f = 0; f <= 30; f += 5) { const x = x0 + f * ppf; ctx.fillRect(x, gy, 1, 5); ctx.fillText(f + ' ft', x, gy + 17); }
+    // rings
+    if (!RM) {
+      const period = 1400;
+      for (let i = 0; i < 3; i++) {
+        const ph = ((S2.t / period) + i / 3) % 1, r = 10 + ph * Math.max(60, ax - x0 + 20);
+        ctx.strokeStyle = alpha(T.signal, 0.55 * (1 - ph)); ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.arc(ax, gy - 30, r, Math.PI * 0.75, Math.PI * 1.25); ctx.stroke();
+      }
+    }
+    // player
+    ctx.strokeStyle = T.ink; ctx.fillStyle = T.ink; ctx.lineWidth = 2.2; ctx.lineCap = 'round';
+    ctx.beginPath(); ctx.arc(x0, gy - 72, 8, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.moveTo(x0, gy - 63); ctx.lineTo(x0, gy - 30); ctx.lineTo(x0 - 9, gy); ctx.moveTo(x0, gy - 30); ctx.lineTo(x0 + 9, gy); ctx.stroke();
+    ctx.fillStyle = alpha(T.signal, 0.35); ctx.strokeStyle = T.ink; ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.ellipse(x0 + 6, gy - 40, 9, 11, -0.5, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+    // amp
+    const aw = 30, ah = 38;
+    rrect(ctx, ax - aw / 2, gy - ah, aw, ah, 4); ctx.fillStyle = T.ink; ctx.fill();
+    ctx.beginPath(); ctx.arc(ax, gy - ah / 2 + 3, 9, 0, Math.PI * 2); ctx.fillStyle = T.panel; ctx.fill();
+    // distance bracket
+    if (ax - x0 > 30) {
+      ctx.strokeStyle = T.mute; ctx.lineWidth = 1; ctx.beginPath();
+      ctx.moveTo(x0, gy - 96); ctx.lineTo(x0, gy - 90); ctx.moveTo(x0, gy - 93); ctx.lineTo(ax, gy - 93); ctx.moveTo(ax, gy - 96); ctx.lineTo(ax, gy - 90); ctx.stroke();
+      ctx.fillStyle = T.ink; ctx.font = T.mono; ctx.textAlign = 'center'; ctx.fillText(fmt(ft, 1) + ' ft', (x0 + ax) / 2, gy - 99);
+    }
+    // zone bar
+    const zy = 150, zh = 14;
+    ctx.textAlign = 'left';
+    for (const z of zones) {
+      const zx0 = x0 + z[0] * 1.125 * ppf, zx1 = x0 + z[1] * 1.125 * ppf;
+      ctx.fillStyle = alpha(T[z[3]], z === zoneOf(S2.ms) ? 0.45 : 0.16); ctx.fillRect(zx0, zy, zx1 - zx0 - 2, zh);
+    }
+    ctx.font = T.monoS; ctx.fillStyle = T.mute; ctx.textAlign = 'center';
+    for (const ms of [0, 5, 10, 20, 30]) ctx.fillText(ms + ' ms', x0 + ms * 1.125 * ppf, zy + zh + 14);
+    // buffer markers
+    ctx.textAlign = 'center';
+    for (const n of [32, 64, 128, 256]) {
+      const x = x0 + lat(n) * 1.125 * ppf;
+      ctx.fillStyle = T.ink; ctx.beginPath(); ctx.moveTo(x, zy - 1); ctx.lineTo(x - 4, zy - 7); ctx.lineTo(x + 4, zy - 7); ctx.fill();
+      if (w > 480 || n !== 64) { ctx.font = T.monoS; ctx.fillText(String(n), x, zy - 10); }
+    }
+    if (w > 600) { ctx.fillStyle = T.mute; ctx.textAlign = 'right'; ctx.font = T.monoS; ctx.fillText('buffer', x0 + lat(32) * 1.125 * ppf - 12, zy - 10); }
+  });
+  function upd2() {
+    S2.ms = +$('ms2').value;
+    $('o2').textContent = fmt(S2.ms, 1) + ' ms';
+    $('r2ft').textContent = fmt(S2.ms * 1.125, 1) + ' ft';
+    $('r2zone').textContent = zoneOf(S2.ms)[2];
+    fig2.draw();
+  }
+  $('ms2').addEventListener('input', upd2);
+
+  // =========================================================
+  // FIG 3: comb filter
+  // =========================================================
+  const S3 = { d: 6.3, g: 0.7 };
+  const fig3 = canvasFig($('cv3'), (ctx, w, h) => {
+    ctx.clearRect(0, 0, w, h);
+    const l = 48, r = 14, t = 16, b = 34, pw = w - l - r, ph = h - t - b;
+    const fMin = 40, fMax = 12000, dbMin = -24, dbMax = 8;
+    const fx = f => l + Math.log(f / fMin) / Math.log(fMax / fMin) * pw;
+    const dy = db => t + (dbMax - db) / (dbMax - dbMin) * ph;
+    // grid
+    ctx.strokeStyle = T.rule; ctx.lineWidth = 1; ctx.font = T.monoS; ctx.fillStyle = T.mute; ctx.textAlign = 'right';
+    for (const db of [6, 0, -6, -12, -18, -24]) { const y = dy(db); ctx.beginPath(); ctx.moveTo(l, y); ctx.lineTo(w - r, y); ctx.stroke(); ctx.fillText((db > 0 ? '+' : db < 0 ? '−' : '') + Math.abs(db) + ' dB', l - 6, y + 4); }
+    ctx.textAlign = 'center';
+    for (const [f, lab] of [[50, '50'], [100, '100'], [200, '200'], [500, '500'], [1000, '1k'], [2000, '2k'], [5000, '5k'], [10000, '10k']]) {
+      const x = fx(f); ctx.beginPath(); ctx.moveTo(x, t); ctx.lineTo(x, t + ph); ctx.stroke(); ctx.fillText(lab, x, h - b + 16);
+    }
+    ctx.fillText('Hz', w - r - 8, h - 6);
+    // guitar range band
+    ctx.fillStyle = alpha(T.signal, 0.06); ctx.fillRect(fx(82), t, fx(5000) - fx(82), ph);
+    ctx.fillStyle = T.mute; ctx.textAlign = 'left'; ctx.fillText('acoustic guitar range', fx(82) + 6, t + 13);
+    // curve
+    const d = S3.d / 1000, g = S3.g, N = Math.max(800, Math.round(pw * 3));
+    ctx.beginPath();
+    for (let i = 0; i <= N; i++) {
+      const f = fMin * Math.pow(fMax / fMin, i / N);
+      const mag = 1 + g * g + 2 * g * Math.cos(2 * Math.PI * f * d);
+      const db = 10 * Math.log10(Math.max(mag, 1e-6)); // relative to the direct sound alone
+      const y = dy(clamp(db, dbMin, dbMax)), x = l + i / N * pw;
+      i ? ctx.lineTo(x, y) : ctx.moveTo(x, y);
+    }
+    ctx.strokeStyle = T.signal; ctx.lineWidth = 1.6; ctx.stroke();
+    ctx.lineTo(w - r, dy(dbMin)); ctx.lineTo(l, dy(dbMin)); ctx.closePath(); ctx.fillStyle = alpha(T.signal, 0.12); ctx.fill();
+    // 0 dB reference emphasis
+    ctx.strokeStyle = alpha(T.ink, 0.5); ctx.setLineDash([3, 4]); ctx.beginPath(); ctx.moveTo(l, dy(0)); ctx.lineTo(w - r, dy(0)); ctx.stroke(); ctx.setLineDash([]);
+    // first notch marker
+    const f1 = 1 / (2 * d);
+    if (f1 > fMin && f1 < fMax) {
+      const x = fx(f1); ctx.fillStyle = T.ink; ctx.beginPath(); ctx.arc(x, dy(clamp(20 * Math.log10(1 - g + 1e-6), dbMin, dbMax)), 3.5, 0, Math.PI * 2); ctx.fill();
+    }
+    // echo note
+    if (S3.d >= 15) {
+      ctx.font = T.sans; const msg = 'Past ~15 ms you hear an echo, not a tone change';
+      const tw = ctx.measureText(msg).width + 18, bx = l + pw - tw - 6, by = dy(-18) - 4;
+      rrect(ctx, bx, by - 16, tw, 26, 6); ctx.fillStyle = T.panel; ctx.fill(); ctx.strokeStyle = T.rule; ctx.stroke();
+      ctx.fillStyle = T.ink; ctx.textAlign = 'left'; ctx.fillText(msg, bx + 9, by + 2);
+    }
+  });
+  function upd3() {
+    S3.d = +$('d3').value; S3.g = +$('g3').value;
+    $('o3d').textContent = fmt(S3.d, 1) + ' ms'; $('o3g').textContent = fmt(S3.g, 2);
+    const f1 = 1000 / (2 * S3.d), sp = 1000 / S3.d;
+    const hz = v => v >= 1000 ? fmt(v / 1000, 2) + ' kHz' : Math.round(v) + ' Hz';
+    $('r3notch').textContent = hz(f1); $('r3space').textContent = hz(sp);
+    $('r3depth').textContent = '−' + fmt(-20 * Math.log10(1 - S3.g + 1e-6), 1) + ' dB';
+    fig3.draw();
+  }
+  $('d3').addEventListener('input', upd3); $('g3').addEventListener('input', upd3);
+
+  // =========================================================
+  // FIG 4: budget
+  // =========================================================
+  const FX = [
+    ['3-band EQ', 60, true], ['Compressor', 150, true], ['Chorus', 200, false], ['Tape-style delay', 150, true],
+    ['Body IR convolution (fixes piezo tone)', 800, true], ['Algorithmic reverb', 2000, true], ['Octave / shimmer pitch shift', 3000, false],
+    ['Small neural amp model', 8000, false], ['Large neural amp model', 40000, false]
+  ];
+  const list = $('fxlist');
+  FX.forEach((f, i) => {
+    const id = 'fx' + i;
+    const row = document.createElement('label'); row.className = 'fxrow'; row.htmlFor = id;
+    row.innerHTML = `<input type="checkbox" id="${id}" ${f[2] ? 'checked' : ''}><span>${f[0]}</span><span class="c">~${f[1].toLocaleString()}</span>`;
+    list.appendChild(row);
+    row.querySelector('input').addEventListener('change', e => { f[2] = e.target.checked; upd4(); });
+  });
+  let load4 = 0;
+  function upd4() {
+    const on = FX.map((f, i) => [f, i]).filter(([f]) => f[2]);
+    const tot = on.reduce((s, [f]) => s + f[1], 0);
+    const shades = i => alpha(i % 2 ? T.signal : T.signal, i % 2 ? 0.55 : 0.9);
+    const fillTrack = (el, cap) => {
+      el.querySelectorAll('.seg-fill').forEach(n => n.remove());
+      let acc = 0; const over = el.querySelector('.over');
+      on.forEach(([f], j) => {
+        const seg = document.createElement('div'); seg.className = 'seg-fill';
+        const wPct = Math.max(0, Math.min(f[1], cap - acc)) / cap * 100; acc += f[1];
+        seg.style.width = wPct + '%'; seg.style.background = shades(j); seg.title = f[0];
+        el.insertBefore(seg, el.firstChild ? el.querySelector('.mark') || over : null);
+      });
+      over.style.display = tot > cap ? 'block' : 'none';
+    };
+    fillTrack($('piTrack'), 50000); fillTrack($('daisyTrack'), 10000);
+    load4 = tot / 50000 * 100;
+    $('piText').textContent = `${tot.toLocaleString()} / 50,000 cycles`;
+    $('daisyText').textContent = `${tot.toLocaleString()} / 10,000 cycles${tot > 10000 ? ' · over' : ''}`;
+    $('loadBig').textContent = (load4 < 1 ? '<1' : Math.round(load4)) + '%';
+    $('loadBig').style.color = load4 > 100 ? T.bad : load4 > 70 ? T.signal : T.ink;
+  }
+  $('sendLoad').addEventListener('click', () => {
+    $('load5').value = String(clamp(Math.round(load4), 5, 98)); upd5(true);
+    $('deadlines').scrollIntoView({ behavior: RM ? 'auto' : 'smooth', block: 'start' });
+  });
+
+  // =========================================================
+  // FIG 5: deadlines simulator
+  // =========================================================
+  const OVH = 0.04;
+  const expo = mean => -mean * Math.log(1 - Math.random());
+  class Sim {
+    constructor(p, t0, keep) {
+      Object.assign(this, { p, keep, blocks: [], ints: [], P: p.N / FS, nBlocks: 0, nMiss: 0, t0, t: t0, busyUntil: t0 });
+      this.k = Math.ceil(t0 / this.P); this.nextArr = t0 + expo(1 / p.lambda);
+    }
+    dur() { return Math.random() < this.p.longFrac ? 0.8 + Math.random() * 2.7 : expo(0.25); }
+    advance(T2) {
+      const P = this.P, p = this.p;
+      for (;;) {
+        const tb = this.k * P, ta = this.nextArr;
+        if (Math.min(ta, tb) > T2) break;
+        if (ta <= tb) {
+          const d = this.dur(); if (this.keep) this.ints.push({ a: ta, b: ta + d });
+          this.busyUntil = Math.max(this.busyUntil, ta + d); this.nextArr = ta + expo(1 / p.lambda);
+        } else {
+          const wake = p.rt ? Math.random() * 0.03 : Math.max(0, this.busyUntil - tb);
+          const done = tb + wake + OVH + p.load * P, miss = done > tb + P;
+          this.nBlocks++; if (miss) this.nMiss++;
+          if (this.keep) this.blocks.push({ s: tb, w: tb + wake, d: done, miss });
+          this.k++;
+        }
+      }
+      this.t = T2;
+    }
+    prune(tMin) {
+      while (this.blocks.length && this.blocks[0].d < tMin && this.blocks[0].s + this.P < tMin) this.blocks.shift();
+      while (this.ints.length && this.ints[0].a + 4 < tMin) this.ints.shift();
+    }
+  }
+  const S5 = { N: 64, load: 0.35, busy: true, rt: false, tau: 0, slow: 30, win: 120, vis: null, stat: null };
+  const params5 = () => ({ N: S5.N, load: S5.load, rt: S5.rt, lambda: S5.busy ? 0.04 : 0.003, longFrac: S5.busy ? 0.15 : 0.02 });
+  function reset5() {
+    const p = params5();
+    S5.vis = new Sim(p, S5.tau - S5.win - 2, true); S5.vis.advance(S5.tau);
+    S5.stat = new Sim(p, 0, false); S5.stat.advance(60000);
+    S5.missMarks = [];
+  }
+  function rateText() {
+    const st = S5.stat, mins = st.t / 60000, r = st.nMiss / mins;
+    let s;
+    if (st.nMiss === 0) s = `none in ${Math.round(mins)} min`;
+    else if (r < 1) s = `≈ 1 every ${Math.round(1 / r)} min`;
+    else if (r < 120) s = `≈ ${Math.round(r)} per minute`;
+    else s = `≈ ${Math.round(r / 60)} per second`;
+    return s;
+  }
+  const fig5 = canvasFig($('cv5'), (ctx, w, h) => {
+    ctx.clearRect(0, 0, w, h);
+    if (!S5.vis) return;
+    const lw = w < 520 ? 62 : 118, r = 10, pw = w - lw - r;
+    const right = S5.tau, left = right - S5.win, X = t => lw + (t - left) / S5.win * pw;
+    const ay = 34, ah = 46, oy = 128, oh = 30;
+    // labels
+    ctx.textAlign = 'left'; ctx.fillStyle = T.ink; ctx.font = T.sans;
+    ctx.fillText(w < 520 ? 'Audio' : 'Audio thread', 0, ay + ah / 2 + 4);
+    ctx.fillText(w < 520 ? 'Other' : 'Everything else', 0, oy + oh / 2 + 4);
+    // row backgrounds
+    ctx.fillStyle = T.bg; ctx.fillRect(lw, ay, pw, ah); ctx.fillRect(lw, oy, pw, oh);
+    ctx.save(); ctx.beginPath(); ctx.rect(lw, 0, pw, h); ctx.clip();
+    const P = S5.vis.P;
+    // interruptions
+    for (const it of S5.vis.ints) {
+      if (it.b < left || it.a > right) continue;
+      ctx.fillStyle = alpha(T.mute, 0.55); ctx.fillRect(X(it.a), oy + 4, Math.max(1, X(Math.min(it.b, right)) - X(it.a)), oh - 8);
+    }
+    // blocks + deadlines
+    for (const bl of S5.vis.blocks) {
+      if (bl.s > right || bl.s + P < left) continue;
+      const x = X(bl.s);
+      ctx.fillStyle = alpha(T.ink, 0.25); ctx.fillRect(x, ay - 6, 1, ah + 12); // deadline tick (start of next = end of this)
+      if (bl.w > right) continue;
+      const dl = bl.s + P, endDraw = Math.min(bl.d, right);
+      const okEnd = Math.min(endDraw, dl);
+      ctx.fillStyle = bl.miss ? alpha(T.bad, 0.8) : T.signal;
+      if (okEnd > bl.w) ctx.fillRect(X(bl.w), ay + 8, Math.max(1, X(okEnd) - X(bl.w)), ah - 16);
+      if (bl.miss && endDraw > dl) { ctx.fillStyle = T.bad; ctx.fillRect(X(dl), ay + 8, X(endDraw) - X(dl), ah - 16); }
+      if (bl.w > bl.s + 0.01 && !S5.rt) { ctx.strokeStyle = alpha(T.mute, 0.9); ctx.setLineDash([2, 3]); ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(x, ay + ah / 2); ctx.lineTo(X(bl.w), ay + ah / 2); ctx.stroke(); ctx.setLineDash([]); }
+      if (S5.rt && okEnd > bl.w) { ctx.fillStyle = T.bg; ctx.fillRect(X(bl.w), oy + 2, Math.max(1, X(okEnd) - X(bl.w)), oh - 4); }
+      if (bl.miss && dl <= right) {
+        const cx = X(dl), cy = ay - 12;
+        ctx.strokeStyle = T.bad; ctx.lineWidth = 2.2; ctx.beginPath(); ctx.moveTo(cx - 5, cy - 5); ctx.lineTo(cx + 5, cy + 5); ctx.moveTo(cx + 5, cy - 5); ctx.lineTo(cx - 5, cy + 5); ctx.stroke();
+        ctx.fillStyle = T.bad; ctx.font = T.mono; ctx.textAlign = 'center'; if (w > 420) ctx.fillText('click', cx, ay + ah + 18);
+      }
+    }
+    ctx.restore();
+    // axis
+    const ty = h - 22;
+    ctx.strokeStyle = T.rule; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(lw, ty); ctx.lineTo(lw + pw, ty); ctx.stroke();
+    ctx.fillStyle = T.mute; ctx.font = T.monoS; ctx.textAlign = 'left';
+    const sb = 10 / S5.win * pw;
+    ctx.fillStyle = T.ink; ctx.fillRect(lw, ty + 6, sb, 2); ctx.fillStyle = T.mute; ctx.fillText('10 ms', lw + sb + 6, ty + 11);
+    ctx.textAlign = 'right'; ctx.fillText('now →', lw + pw, ty + 11);
+    // legend
+    ctx.textAlign = 'left'; const lgx = lw + pw - (w < 520 ? 150 : 300); const lgy = oy - 14;
+    if (w >= 520) {
+      ctx.fillStyle = T.signal; ctx.fillRect(lgx, lgy - 8, 10, 8); ctx.fillStyle = T.mute; ctx.fillText('effect running', lgx + 14, lgy);
+      ctx.fillStyle = alpha(T.ink, 0.4); ctx.fillRect(lgx + 120, lgy - 10, 1, 12); ctx.fillStyle = T.mute; ctx.fillText('deadline', lgx + 126, lgy);
+      ctx.fillStyle = alpha(T.mute, 0.6); ctx.fillRect(lgx + 196, lgy - 8, 10, 8); ctx.fillStyle = T.mute; ctx.fillText('hiccup', lgx + 210, lgy);
+    }
+  });
+  function upd5(resetSim) {
+    S5.load = +$('load5').value / 100; S5.busy = $('busy5').checked; S5.rt = $('rt5').checked;
+    const P = S5.N / FS;
+    $('o5load').textContent = Math.round(S5.load * 100) + '%';
+    $('r5lat').textContent = fmt(lat(S5.N)) + ' ms';
+    const slack = P - S5.load * P - OVH;
+    $('r5slack').textContent = (slack > 0 ? fmt(slack) : '0.00') + ' ms';
+    if (resetSim) reset5();
+    $('r5rate').textContent = rateText();
+    fig5.draw();
+  }
+  segGroup($('buf5'), n => { S5.N = n; upd5(true); });
+  $('load5').addEventListener('input', () => upd5(true));
+  $('busy5').addEventListener('change', () => upd5(true));
+  $('rt5').addEventListener('change', () => upd5(true));
+  let rateTimer = 0;
+  function tick5(dt) {
+    S5.tau += dt / S5.slow;
+    S5.vis.advance(S5.tau); S5.vis.prune(S5.tau - S5.win - 6);
+    if (S5.stat.t < 30 * 60000) { S5.stat.advance(S5.stat.t + 2000); }
+    rateTimer += dt; if (rateTimer > 500) { rateTimer = 0; $('r5rate').textContent = rateText(); }
+  }
+
+  // =========================================================
+  // boot + loop
+  // =========================================================
+  const figs = [fig1, fig2, fig3, fig5];
+  S5.tau = 200;
+  upd2(); upd3(); upd4(); upd5(true);
+  fig1.draw();
+  if (!RM) {
+    let last = performance.now();
+    const frame = now => {
+      const dt = Math.min(50, now - last); last = now;
+      tick1(dt); S2.t += dt; tick5(dt);
+      if (fig1.visible) fig1.draw();
+      if (fig2.visible) fig2.draw();
+      if (fig5.visible) fig5.draw();
+      requestAnimationFrame(frame);
+    };
+    requestAnimationFrame(frame);
+  }
+})();
+</script>
+</body>
+</html>

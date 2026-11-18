@@ -1,0 +1,895 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>What a Sample Is</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=IBM+Plex+Mono:wght@400;500&family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,600;1,8..60,400&display=swap" rel="stylesheet">
+<style>
+/* Layout idea: same single reading column and palette as "What guitar effects cost to compute", which this follows up.
+   Each idea gets one interactive figure placed right where it's explained. */
+:root {
+  --bg: #f3f5f6;
+  --surface: #ffffff;
+  --ink: #15212b;
+  --muted: #5a6a77;
+  --line: #d3dce2;
+  --accent: #0d6a88;
+  --accent-soft: #dcedf3;
+  --accent-2: #a8406a;
+  --accent-2-soft: #f5e1e9;
+  --font-display: "Bricolage Grotesque", "Helvetica Neue", Arial, sans-serif;
+  --font-body: "Source Serif 4", Georgia, "Times New Roman", serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0d141a;
+    --surface: #141e26;
+    --ink: #e3eaef;
+    --muted: #91a2af;
+    --line: #283741;
+    --accent: #52b5d6;
+    --accent-soft: #163341;
+    --accent-2: #e2809f;
+    --accent-2-soft: #3a1f2b;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0d141a;
+  --surface: #141e26;
+  --ink: #e3eaef;
+  --muted: #91a2af;
+  --line: #283741;
+  --accent: #52b5d6;
+  --accent-soft: #163341;
+  --accent-2: #e2809f;
+  --accent-2-soft: #3a1f2b;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font-body);
+  font-size: 18px;
+  line-height: 1.6;
+}
+main {
+  max-width: 760px;
+  margin: 0 auto;
+  padding: 48px 16px 80px;
+  display: flex;
+  flex-direction: column;
+  gap: 56px;
+}
+h1, h2, h3 {
+  font-family: var(--font-display);
+  line-height: 1.15;
+  text-wrap: balance;
+  margin: 0;
+}
+h1 { font-size: clamp(2rem, 5vw, 2.8rem); font-weight: 700; letter-spacing: -0.01em; }
+h2 { font-size: 1.6rem; font-weight: 700; }
+h3 { font-size: 1.15rem; font-weight: 500; }
+p { margin: 0; max-width: 65ch; }
+a { color: var(--accent); }
+section { display: flex; flex-direction: column; gap: 18px; }
+header { display: flex; flex-direction: column; gap: 16px; }
+.lede { font-size: 1.15rem; color: var(--muted); }
+.tier {
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+  color: var(--accent);
+  letter-spacing: 0.02em;
+}
+code, .mono { font-family: var(--font-mono); font-size: 0.88em; }
+.eq {
+  font-family: var(--font-mono);
+  font-size: 0.95rem;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 12px 16px;
+  overflow-x: auto;
+  white-space: nowrap;
+}
+.figure {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.figure .scroll { overflow-x: auto; }
+.caption { font-size: 0.9rem; color: var(--muted); }
+.callout {
+  border-left: 3px solid var(--accent);
+  padding: 4px 0 4px 16px;
+}
+.answer {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  counter-reset: a;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.answer li {
+  counter-increment: a;
+  position: relative;
+  padding-left: 40px;
+  max-width: 65ch;
+}
+.answer li::before {
+  content: counter(a);
+  position: absolute; left: 0; top: 2px;
+  width: 1.6em; height: 1.6em; border-radius: 50%;
+  background: var(--accent); color: var(--surface);
+  font-family: var(--font-mono); font-size: 0.8rem;
+  display: inline-flex; align-items: center; justify-content: center;
+}
+
+/* tables */
+table.ledger { width: 100%; border-collapse: collapse; font-size: 0.95rem; }
+.ledger th, .ledger td { text-align: left; padding: 8px 8px; border-bottom: 1px solid var(--line); vertical-align: top; }
+.ledger th { font-family: var(--font-display); font-weight: 500; font-size: 0.85rem; color: var(--muted); }
+.ledger td.n { font-family: var(--font-mono); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.ledger td.name { font-family: var(--font-display); font-weight: 500; white-space: nowrap; }
+
+/* controls */
+.controls { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 14px 20px; }
+.ctl { display: flex; flex-direction: column; gap: 4px; font-family: var(--font-display); font-size: 0.85rem; color: var(--muted); }
+.ctl output { font-family: var(--font-mono); color: var(--ink); font-size: 0.9rem; }
+.ctl .row { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+input[type="range"] { width: 100%; accent-color: var(--accent); }
+select {
+  font: inherit; font-family: var(--font-mono); font-size: 0.9rem;
+  color: var(--ink); background: var(--bg);
+  border: 1px solid var(--line); border-radius: 6px; padding: 6px 8px;
+}
+input:focus-visible, select:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+canvas { display: block; width: 100%; }
+.readout { font-family: var(--font-mono); font-size: 0.9rem; font-variant-numeric: tabular-nums; }
+
+.stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; }
+.stat {
+  background: var(--bg); border: 1px solid var(--line); border-radius: 6px;
+  padding: 10px 12px; display: flex; flex-direction: column; gap: 2px;
+}
+.stat .k { font-family: var(--font-display); font-size: 0.8rem; color: var(--muted); }
+.stat .v { font-family: var(--font-mono); font-size: 1.15rem; font-variant-numeric: tabular-nums; }
+.stat .v.acc { color: var(--accent); }
+.stat .v.acc2 { color: var(--accent-2); }
+
+.phasors { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; }
+.phasors > div { background: var(--bg); border: 1px solid var(--line); border-radius: 6px; }
+.plot-title { font-family: var(--font-display); font-weight: 500; font-size: 1rem; margin: 6px 0 0; }
+
+/* matrix diagram */
+svg.diagram { display: block; width: 100%; min-width: 560px; height: auto; }
+.d-text { fill: var(--ink); font-family: var(--font-mono); font-size: 14px; }
+.d-big { fill: var(--ink); font-family: var(--font-mono); font-size: 22px; }
+.d-small { fill: var(--muted); font-family: var(--font-mono); font-size: 11px; }
+.m-0 { fill: var(--surface); stroke: var(--line); stroke-width: 1; }
+.m-a { fill: var(--accent); stroke: var(--surface); stroke-width: 1; }
+.m-w { fill: var(--accent-2); stroke: var(--surface); stroke-width: 1; }
+
+.notes { font-size: 0.9rem; color: var(--muted); display: flex; flex-direction: column; gap: 8px; }
+.notes h3 { color: var(--ink); }
+
+@media (max-width: 520px) {
+  body { font-size: 17px; }
+  main { padding-top: 32px; gap: 44px; }
+  .figure { padding: 12px; }
+}
+</style>
+</head>
+<body>
+<main>
+
+<header>
+  <span class="tier">Follow-up to <a href="effects-compute-cost.html">What guitar effects cost to compute</a></span>
+  <h1>A sample is one number</h1>
+  <p class="lede">The biquad filter mixes "the last two input samples and the last two output samples" with five fixed numbers. A natural guess is that each sample is a spectrum, one intensity per frequency, in which case a filter would need a whole vector of per-frequency multipliers, not five scalars. That guess is right about the multipliers and wrong about the sample, and the gap between the two is the central idea of audio filtering.</p>
+</header>
+
+<section id="answer">
+  <h2>The short answer</h2>
+  <ol class="answer">
+    <li><strong>A sample is a single signed number</strong>: how far the signal sits above or below zero at one instant. Your guitar's stream is 48,000 of them per second, one after another.</li>
+    <li><strong>No single sample contains a frequency.</strong> Frequency is a pattern <em>across</em> samples: how fast the numbers swing up and down.</li>
+    <li><strong>The five coefficients are scalars, but they multiply samples from different moments.</strong> Delaying a wave by one sample does something different to each frequency: a tiny nudge for a bass note, half a cycle for the highest treble.</li>
+    <li><strong>So a scalar mix of delayed samples multiplies each frequency by its own number, H(f).</strong> That function is your vector of per-frequency modification factors. The filter never stores it; it falls out of the five coefficients. The EQ curve in the compute explainer is a plot of it.</li>
+  </ol>
+</section>
+
+<section id="number">
+  <h2>What the number is</h2>
+  <p>Your Ovation's under-saddle piezo produces a voltage that follows the strings' push on the saddle, moment by moment. The onboard preamp boosts it, and the Pisound's analog-to-digital converter measures that voltage 48,000 times a second. Each measurement is one sample. By the time your effect sees it, it's a 32-bit float scaled so the converter's limits are −1 and +1. On the way out, the same kind of number sets roughly where the amp's speaker cone sits at that instant.</p>
+  <p>The number is <strong>signed</strong>: positive is a push one way, negative the other, zero is rest. That matters, because two signals can cancel, and every filter below relies on it. It's an <em>amplitude</em>, not an intensity. Loudness is closer to the average of its square over many samples.</p>
+  <p>Your guitar is mono, so there's one number per instant. A stereo stream has two, one per channel. That's the only sense in which a sample is a vector.</p>
+  <div class="figure">
+    <h3>Three things that get called "a chunk of audio"</h3>
+    <div class="scroll">
+    <table class="ledger">
+      <thead><tr><th>Name</th><th>Size</th><th>Duration</th><th>What it's for</th></tr></thead>
+      <tbody>
+        <tr><td class="name">Sample</td><td class="n">1 number</td><td class="n">20.8 µs</td><td>The <code>x[n]</code> in the biquad equation. <code>x[n−1]</code> is the sample 20.8 µs earlier.</td></tr>
+        <tr><td class="name">Block</td><td class="n">128 samples</td><td class="n">2.7 ms</td><td>What the audio server hands your effect per deadline (also called a buffer or period). Only a scheduling unit: the filter carries its four remembered values across block boundaries, so the output is identical to running one sample at a time.</td></tr>
+        <tr><td class="name">Analysis frame</td><td class="n">e.g. 2,048 samples</td><td class="n">43 ms</td><td>What an FFT turns into a spectrum of 1,025 frequency bins. This is the vector you pictured. It's computed from the stream, and only some effects use it (last section).</td></tr>
+      </tbody>
+    </table>
+    </div>
+  </div>
+</section>
+
+<section id="superposition">
+  <h2>Frequencies add up into one number</h2>
+  <p>A pure 440 Hz tone (the A on the 5th fret of your high E string) is a stream of numbers that swings up and down 440 times a second, so one cycle spans 48,000 ÷ 440 ≈ 109 samples. A 4 kHz tone cycles every 12 samples. When both sound at once, the air pressure is the sum of the two, so the stream is the two streams added sample by sample.</p>
+  <div class="figure">
+    <h3>Try it: pick a sample</h3>
+    <label class="ctl" for="supN"><span class="row">Sample number <output id="supNOut">40</output></span>
+      <input id="supN" type="range" min="0" max="95" value="40">
+    </label>
+    <canvas id="supCanvas" data-h="330" aria-label="A 440 Hz tone, a 4 kHz tone, and their sum, shown as 96 sample dots each, with one sample highlighted"></canvas>
+    <p class="readout" id="supOut"></p>
+    <p class="caption">2 ms of audio, 96 samples. Dots are samples; the faint line is the smooth wave they come from. Only the bottom row reaches your effect. The highlighted sample is the sum of what each tone contributed at that instant, and nothing in it records which tone contributed what.</p>
+  </div>
+  <p>That's why one sample can't tell you its frequencies, the same way one pixel can't tell you what a photo shows. Frequency only exists across a run of samples. The fastest wave 48 kHz sampling can hold is 24 kHz, two samples per cycle: up, down, up, down. That's above human hearing, which is why 48 kHz is enough.</p>
+</section>
+
+<section id="mixing">
+  <h2>Mixing samples from different moments</h2>
+  <p>Strip the biquad down to the smallest filter there is: average each sample with the one before it.</p>
+  <div class="eq">y[n] = ½·x[n] + ½·x[n−1]</div>
+  <p>Two weights, both ½, the same for every frequency. Now feed it tones. A slow tone barely changes between neighbouring samples, so the average is almost the sample itself and the tone passes through. A tone near 24 kHz flips sign every sample, so each sample cancels its neighbour and the tone disappears. In between, the cancellation is partial. Two scalar weights made a high-cut (low-pass) filter.</p>
+  <div class="figure">
+    <h3>Try it: the two-sample filter</h3>
+    <div class="controls">
+      <label class="ctl" for="twMode"><span class="row">Filter</span>
+        <select id="twMode">
+          <option value="avg" selected>Average: ½·x[n] + ½·x[n−1]</option>
+          <option value="diff">Difference: ½·x[n] − ½·x[n−1]</option>
+        </select>
+      </label>
+      <label class="ctl" for="twFreq"><span class="row">Tone frequency <output id="twFreqOut"></output></span>
+        <input id="twFreq" type="range" min="0" max="1000" value="700">
+      </label>
+    </div>
+    <canvas id="twCanvas" data-h="300" aria-label="Input samples, the same samples delayed by one, and the filter output"></canvas>
+    <div class="stats">
+      <div class="stat"><span class="k">One-sample delay, as a share of this tone's cycle</span><span class="v" id="twDeg"></span></div>
+      <div class="stat"><span class="k">Output size ÷ input size</span><span class="v acc" id="twGain"></span></div>
+    </div>
+    <h4 class="plot-title">The same ratio at every frequency</h4>
+    <canvas id="twResp" data-h="160" aria-label="Gain of the two-sample filter across frequency, with the current tone marked"></canvas>
+    <p class="caption">40 samples (0.8 ms). Top: each sample (dark) beside the sample before it (pink); those two get mixed. Bottom: the output (blue) over the faint input. Slide the frequency up and watch the pairs drift apart until they're opposites.</p>
+  </div>
+  <p>Flip one sign, <code>½·x[n] − ½·x[n−1]</code>, and you get the opposite. Slow tones cancel against their nearly equal neighbour and fast ones survive: a low-cut (high-pass) filter. The weights didn't pick out frequencies. The delay did, because one sample is a different fraction of a cycle for every frequency. The weights only decide what to do with the mismatch.</p>
+</section>
+
+<section id="rotation">
+  <h2>A delay is a rotation, different for each frequency</h2>
+  <p>This is where the math makes it clean. Write a tone as a complex exponential, <code>x[n] = e<sup>jωn</sup></code>, where <code>ω = 2πf ÷ 48,000</code> is the angle the wave advances per sample. (A real sine is this plus its mirror image <code>e<sup>−jωn</sup></code>, and the coefficients are real, so the mirror image behaves the same way.) Delay it by one sample:</p>
+  <div class="eq">x[n−1] = e<sup>jω(n−1)</sup> = e<sup>−jω</sup> · x[n]</div>
+  <p>The wave is unchanged except for multiplication by <code>e<sup>−jω</sup></code>, a complex number of length 1 at angle −ω. For a bass note ω is tiny, so the rotation is tiny. At 24 kHz, ω = π, a half turn, which is multiplication by −1. So a filter's weighted sum of delayed copies is:</p>
+  <div class="eq">y[n] = (b0 + b1·e<sup>−jω</sup> + b2·e<sup>−2jω</sup>) · x[n] = H(ω) · x[n]</div>
+  <p>The bracket is one complex number that depends only on frequency. Any tone goes in and comes out multiplied by it: scaled by <code>|H(ω)|</code> and shifted in time by its angle. Because the filter is linear, a chord (a sum of tones) comes out as the sum of each tone times its own H. The filter applies a different multiplier to every frequency at once, without computing any of them.</p>
+  <p>Feedback works the same way. The past-output terms form a second sum, and the multiplier becomes a ratio of two quadratics in <code>e<sup>−jω</sup></code>, which is where the name <strong>biquad</strong> comes from:</p>
+  <div class="eq">H(ω) = (b0 + b1·e<sup>−jω</sup> + b2·e<sup>−2jω</sup>) ÷ (1 + a1·e<sup>−jω</sup> + a2·e<sup>−2jω</sup>)</div>
+
+  <div class="figure">
+    <h3>Try it: add the arrows</h3>
+    <p class="sub caption">Each coefficient is an arrow whose length is the coefficient. The arrow for a sample from k steps ago is turned clockwise by k·ω. Add the arrows tip to tail; the length of the total (thick arrow) is how much of that frequency gets through.</p>
+    <div class="controls">
+      <label class="ctl" for="phPreset"><span class="row">Filter</span>
+        <select id="phPreset">
+          <optgroup label="Weights only, no feedback">
+            <option value="avg2" selected>Two-sample average</option>
+            <option value="smooth3">Three-tap smoother ¼ ½ ¼</option>
+            <option value="diff">Two-sample difference</option>
+            <option value="firnotch">Notch at 1 kHz, weights only</option>
+            <option value="custom">Your own three weights</option>
+          </optgroup>
+          <optgroup label="Biquads: weights + feedback">
+            <option value="notch">Notch at 1 kHz</option>
+            <option value="peak">EQ band: −12 dB at 1.2 kHz</option>
+            <option value="lowcut">Low-cut at 100 Hz</option>
+          </optgroup>
+        </select>
+      </label>
+      <label class="ctl" for="phFreq"><span class="row">Tone frequency <output id="phFreqOut"></output></span>
+        <input id="phFreq" type="range" min="0" max="1000" value="552">
+      </label>
+    </div>
+    <div class="controls" id="phCustom" hidden>
+      <label class="ctl" for="phB0"><span class="row">b0 <output id="phB0Out"></output></span><input id="phB0" type="range" min="-1" max="1" step="0.05" value="0.5"></label>
+      <label class="ctl" for="phB1"><span class="row">b1 <output id="phB1Out"></output></span><input id="phB1" type="range" min="-1" max="1" step="0.05" value="0.3"></label>
+      <label class="ctl" for="phB2"><span class="row">b2 <output id="phB2Out"></output></span><input id="phB2" type="range" min="-1" max="1" step="0.05" value="0.2"></label>
+    </div>
+    <div class="eq" id="phEq"></div>
+    <div class="phasors">
+      <div><canvas id="phNum" data-h="270" aria-label="Weight arrows added tip to tail"></canvas></div>
+      <div id="phDenWrap"><canvas id="phDen" data-h="270" aria-label="Feedback arrows added tip to tail"></canvas></div>
+    </div>
+    <div class="stats">
+      <div class="stat"><span class="k">Turn per sample of delay (ω)</span><span class="v" id="phDeg"></span></div>
+      <div class="stat"><span class="k">Weights total</span><span class="v acc" id="phNb"></span></div>
+      <div class="stat" id="phNaWrap"><span class="k">Feedback total</span><span class="v acc2" id="phNa"></span></div>
+      <div class="stat"><span class="k" id="phGainK">Gain</span><span class="v" id="phGain"></span></div>
+    </div>
+    <p class="caption" id="phNote"></p>
+    <h4 class="plot-title">|H| at every frequency, in dB</h4>
+    <canvas id="phResp" data-h="200" aria-label="Frequency response of the selected filter, with the current tone marked"></canvas>
+  </div>
+  <p class="callout">Notice the "weights only" notch. It does kill 1 kHz, but with three weights you can only put the cancellation in one place and live with whatever that does elsewhere: the bass dies too and the treble is boosted 4×. Feedback lets the second sum nearly copy the first everywhere except right at the notch, so the ratio stays at 1 except where you want it. That's what the two feedback coefficients buy: a sharp, local change from five numbers.</p>
+</section>
+
+<section id="linalg">
+  <h2>The linear-algebra view</h2>
+  <p>Take a stretch of N samples as a vector <code>x ∈ ℝ<sup>N</sup></code>. Its coordinates are moments in time, not frequencies. A filter with weights b0, b1, b2 is the linear map <code>y = Tx</code>, where T has b0 on the diagonal, b1 just below it and b2 below that: a banded Toeplitz matrix. Every row is the previous one shifted by one step, because the filter does the same thing at every moment.</p>
+  <div class="figure">
+    <div class="scroll"><svg id="matSvg" class="diagram" viewBox="0 0 600 240" role="img" aria-label="A banded circulant filter matrix equals inverse DFT times a diagonal matrix of gains times the DFT"></svg></div>
+    <p class="caption">Left: the three-tap smoother as an 8 × 8 matrix (darkest = b0, then b1, b2; the faded corners are the wrap-around). Right: the same matrix factored. The pink matrices are the Fourier transform and its inverse, whose columns are sinusoids. The middle matrix is diagonal, and its entries, shaded by size, are the smoother's gain at 8 frequencies, high at bass and zero at 24 kHz.</p>
+  </div>
+  <p>Wrap the band around at the edges and T is <strong>circulant</strong>. The discrete Fourier transform diagonalizes every circulant matrix: <code>T = F<sup>−1</sup> · diag(Ĥ) · F</code>. The sinusoids are the eigenvectors and the eigenvalues Ĥ are the frequency response at N frequencies. <strong>Your mental model is exactly <code>diag(Ĥ)</code></strong>: the filter written in its eigenbasis, where it is elementwise multiplication. The biquad is the same operator written in the time basis, where it's three diagonals and needs only the last few samples.</p>
+  <p>Sinusoids diagonalize every such filter at once because they're the eigenvectors of the one-sample shift, and a filter that behaves the same at every moment commutes with shifting. For the endless, non-wrapping stream the same statement holds with the discrete-time Fourier transform in place of the DFT.</p>
+  <p>Feedback makes it <code>y = A<sup>−1</sup>Bx</code> with A and B both banded. The inverse of a banded lower-triangular Toeplitz matrix is lower-triangular and <em>dense</em>: every output depends on every past input, with weights that decay. That's the "infinite impulse response" in the name IIR filter. Two feedback coefficients buy the effect of a very long weight vector for two multiplies.</p>
+</section>
+
+<section id="spectrogram">
+  <h2>Your vector, for real: the spectrogram</h2>
+  <p>The per-frequency picture does exist; it just has to be computed. Take a window of N samples, taper its edges, run an FFT, and you get N/2 + 1 numbers, one per frequency bin. Slide the window along and stack the results, and you have a spectrogram. Each column is the vector you imagined.</p>
+  <div class="figure">
+    <h3>Try it: a strummed E chord, then two single notes</h3>
+    <div class="controls">
+      <label class="ctl" for="spWin"><span class="row">Window size</span>
+        <select id="spWin">
+          <option value="256">256 samples</option>
+          <option value="2048" selected>2,048 samples</option>
+          <option value="8192">8,192 samples</option>
+        </select>
+      </label>
+      <label class="ctl" for="spT"><span class="row">Moment <output id="spTOut"></output></span>
+        <input id="spT" type="range" min="0" max="299" value="60">
+      </label>
+    </div>
+    <canvas id="waveCanvas" data-h="70" aria-label="The audio stream as a waveform, with the current analysis window highlighted"></canvas>
+    <canvas id="specCanvas" data-h="250" aria-label="Spectrogram of the strum, frequency 0 to 2.5 kHz against time"></canvas>
+    <div class="stats">
+      <div class="stat"><span class="k">Each column uses</span><span class="v" id="spUses"></span></div>
+      <div class="stat"><span class="k">Bins are spaced</span><span class="v" id="spBin"></span></div>
+    </div>
+    <h4 class="plot-title">One column: the vector at the chosen moment</h4>
+    <canvas id="colCanvas" data-h="150" aria-label="Bar chart of the spectrum at the chosen moment"></canvas>
+    <p class="caption">Top: the stream itself, with the window that feeds the chosen column shaded. Middle: the spectrogram below 2.5 kHz; brighter is louder, and each horizontal line is one harmonic of a string. Bottom: the chosen column as bars, one per bin. The audio is synthesized in the page.</p>
+  </div>
+  <p>Change the window and watch the trade. To tell 82 Hz from 87 Hz (low E from the F above it) the bins must be under 5 Hz apart, which takes at least 48,000 ÷ 5 ≈ 10,000 samples, about 0.2 s of audio. A short window catches the strum instantly but blurs neighbouring harmonics together; a long one separates every harmonic but smears the attack. This isn't a software limit. It's the time–frequency uncertainty principle, and it means a column always describes a stretch of time, never an instant.</p>
+  <p class="callout">That's why the box filters in the time domain. A biquad answers on every sample using four remembered numbers. A spectral method has to collect a window first, and that wait is latency you'd hear against the guitar's own acoustic sound. The effects that do work on spectra, like FFT convolution for the body IR, pay for it in latency or with the partitioning trick in the compute explainer.</p>
+</section>
+
+<section class="notes" id="box">
+  <h3>How this shows up in the box</h3>
+  <p>Turning an EQ knob changes H(f) by recomputing five coefficients, off the audio path. The per-sample loop doesn't change. That's the "precompute the expensive parts" rule in action.</p>
+  <p>A frequency-response plot in the web app can be drawn straight from the coefficients with the formula above. It doesn't need any audio.</p>
+  <p>Linear filters in a row multiply their H's, so the order of EQ bands doesn't change the result. Compressors, distortion and anything else whose behaviour depends on level aren't linear, so none of this page applies to them directly.</p>
+</section>
+
+</main>
+
+<script>
+(function () {
+  "use strict";
+  var FS = 48000;
+  var FMIN = 20, FMAX = 24000;
+  var MONO = '11px "IBM Plex Mono", ui-monospace, Menlo, monospace';
+  var SANS = '12px "Bricolage Grotesque", "Helvetica Neue", Arial, sans-serif';
+
+  function $(id) { return document.getElementById(id); }
+  function cssVar(n) { return getComputedStyle(document.documentElement).getPropertyValue(n).trim(); }
+  function colors() {
+    return {
+      ink: cssVar("--ink"), muted: cssVar("--muted"), line: cssVar("--line"),
+      acc: cssVar("--accent"), soft: cssVar("--accent-soft"),
+      acc2: cssVar("--accent-2"), soft2: cssVar("--accent-2-soft"),
+      surface: cssVar("--surface"), bg: cssVar("--bg")
+    };
+  }
+  function prep(cv) {
+    var dpr = window.devicePixelRatio || 1;
+    var w = cv.clientWidth, h = +cv.dataset.h;
+    cv.style.height = h + "px";
+    cv.width = Math.round(w * dpr);
+    cv.height = Math.round(h * dpr);
+    var ctx = cv.getContext("2d");
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, w, h);
+    return { ctx: ctx, w: w, h: h };
+  }
+  function num(v, d) {
+    d = d === undefined ? 2 : d;
+    if (Math.abs(v) < 0.5 * Math.pow(10, -d)) v = 0;
+    var s = v.toFixed(d);
+    return s.charAt(0) === "-" ? "−" + s.slice(1) : s;
+  }
+  function paren(s) { return s.charAt(0) === "−" ? "(" + s + ")" : s; }
+  function fmtHz(f) {
+    if (f < 1000) return Math.round(f) + " Hz";
+    return (f / 1000).toFixed(f < 10000 ? 2 : 1) + " kHz";
+  }
+  function dbStr(g) {
+    if (g < 1e-4) return "below −80 dB";
+    var d = 20 * Math.log10(g);
+    return num(d, 1) + " dB";
+  }
+  function sliderToHz(v) { return FMIN * Math.pow(FMAX / FMIN, v / 1000); }
+  function logX(f, x0, x1) { return x0 + Math.log(f / FMIN) / Math.log(FMAX / FMIN) * (x1 - x0); }
+  function dot(ctx, x, y, r, fill) { ctx.beginPath(); ctx.arc(x, y, r, 0, 2 * Math.PI); ctx.fillStyle = fill; ctx.fill(); }
+  function seg(ctx, x0, y0, x1, y1, col, lw) {
+    ctx.strokeStyle = col; ctx.lineWidth = lw || 1;
+    ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); ctx.stroke();
+  }
+  function curve(ctx, t0, t1, step, fx, fy, col, lw, alpha) {
+    ctx.save();
+    ctx.globalAlpha = alpha === undefined ? 1 : alpha;
+    ctx.strokeStyle = col; ctx.lineWidth = lw || 1;
+    ctx.beginPath();
+    for (var t = t0, first = true; t <= t1 + 1e-9; t += step) {
+      var x = fx(t), y = fy(t);
+      if (first) { ctx.moveTo(x, y); first = false; } else ctx.lineTo(x, y);
+    }
+    ctx.stroke();
+    ctx.restore();
+  }
+  function label(ctx, text, x, y, col, font, align) {
+    ctx.font = font || SANS; ctx.fillStyle = col; ctx.textAlign = align || "left";
+    ctx.fillText(text, x, y);
+    ctx.textAlign = "left";
+  }
+  function freqTicks(ctx, x0, x1, yTop, yBot, c) {
+    [[20, "20"], [100, "100"], [1000, "1k"], [10000, "10k"], [24000, "24k"]].forEach(function (t) {
+      var x = logX(t[0], x0, x1);
+      seg(ctx, x, yTop, x, yBot, c.line, 1);
+      label(ctx, t[1], x, yBot + 14, c.muted, MONO, t[0] === 24000 ? "right" : (t[0] === 20 ? "left" : "center"));
+    });
+  }
+
+  /* ---------- Figure: superposition ---------- */
+  var SUP_N = 96;
+  function toneLo(t) { return 0.5 * Math.sin(2 * Math.PI * 440 * t / FS + 0.4); }
+  function toneHi(t) { return 0.3 * Math.sin(2 * Math.PI * 4000 * t / FS + 1.9); }
+  function toneSum(t) { return toneLo(t) + toneHi(t); }
+  function drawSup() {
+    var cv = $("supCanvas"); if (!cv.clientWidth) return;
+    var p = prep(cv), ctx = p.ctx, w = p.w, h = p.h, c = colors();
+    var sel = +$("supN").value, pl = 6, pr = 6;
+    $("supNOut").textContent = sel;
+    var colW = (w - pl - pr) / SUP_N;
+    function X(t) { return pl + (t + 0.5) * colW; }
+    var rows = [
+      { name: "440 Hz tone", f: toneLo, col: c.ink },
+      { name: "4 kHz tone", f: toneHi, col: c.ink },
+      { name: "the sum: the only stream your effect receives", f: toneSum, col: c.acc }
+    ];
+    var rowH = h / 3;
+    ctx.fillStyle = c.soft;
+    var bw = Math.max(colW, 7);
+    ctx.fillRect(X(sel) - bw / 2, 0, bw, h);
+    rows.forEach(function (r, i) {
+      var top = i * rowH + 24, bot = (i + 1) * rowH - 8, mid = (top + bot) / 2, amp = (bot - top) / 2;
+      function Y(v) { return mid - v / 0.85 * amp; }
+      seg(ctx, pl, mid, w - pr, mid, c.line, 1);
+      curve(ctx, -0.5, SUP_N - 0.5, 0.1, X, function (t) { return Y(r.f(t)); }, c.muted, 1, 0.55);
+      for (var n = 0; n < SUP_N; n++) dot(ctx, X(n), Y(r.f(n)), n === sel ? 4.5 : 2.2, r.col);
+      label(ctx, r.name, pl, i * rowH + 15, c.muted);
+      label(ctx, num(r.f(sel)), w - pr, i * rowH + 15, r.col, MONO, "right");
+    });
+    var a = toneLo(sel), b = toneHi(sel);
+    $("supOut").textContent = "Sample " + sel + " (t = " + (sel / FS * 1000).toFixed(3) + " ms): " +
+      num(a) + " + " + paren(num(b)) + " = " + num(a + b) + ". The stream holds only " + num(a + b) + ".";
+  }
+
+  /* ---------- Figure: two-sample filter ---------- */
+  var TW_N = 40;
+  function twMag(om, s) { return s > 0 ? Math.abs(Math.cos(om / 2)) : Math.abs(Math.sin(om / 2)); }
+  function drawTwo() {
+    var cv = $("twCanvas"); if (!cv.clientWidth) return;
+    var s = $("twMode").value === "avg" ? 1 : -1;
+    var f = sliderToHz(+$("twFreq").value), om = 2 * Math.PI * f / FS, ph = 0.6;
+    $("twFreqOut").textContent = fmtHz(f);
+    var g = twMag(om, s);
+    $("twGain").textContent = "×" + g.toFixed(3) + " (" + dbStr(g) + ")";
+    var frac = f / FS;
+    $("twDeg").textContent = (frac < 0.01 ? (frac * 100).toFixed(2) : (frac * 100).toFixed(1)) + "% (" + (360 * frac).toFixed(1) + "°)";
+
+    var p = prep(cv), ctx = p.ctx, w = p.w, h = p.h, c = colors(), pl = 6, pr = 6;
+    var colW = (w - pl - pr) / TW_N;
+    function X(t) { return pl + (t + 0.5) * colW; }
+    function x(t) { return Math.sin(om * t + ph); }
+    function y(t) { return 0.5 * x(t) + s * 0.5 * x(t - 1); }
+    var rowH = h / 2;
+
+    var top = 24, bot = rowH - 8, mid = (top + bot) / 2, amp = (bot - top) / 2 * 0.95;
+    seg(ctx, pl, mid, w - pr, mid, c.line, 1);
+    curve(ctx, -0.5, TW_N - 0.5, 0.05, X, function (t) { return mid - x(t) * amp; }, c.muted, 1, 0.5);
+    for (var n = 0; n < TW_N; n++) {
+      seg(ctx, X(n), mid - x(n) * amp, X(n), mid - x(n - 1) * amp, c.line, 2);
+      dot(ctx, X(n), mid - x(n - 1) * amp, 2.6, c.acc2);
+      dot(ctx, X(n), mid - x(n) * amp, 2.6, c.ink);
+    }
+    label(ctx, "x[n] (dark) next to x[n−1] (pink): the pair mixed at each moment", pl, 15, c.muted);
+
+    top = rowH + 24; bot = h - 8; mid = (top + bot) / 2; amp = (bot - top) / 2 * 0.95;
+    seg(ctx, pl, mid, w - pr, mid, c.line, 1);
+    curve(ctx, -0.5, TW_N - 0.5, 0.05, X, function (t) { return mid - x(t) * amp; }, c.muted, 1, 0.3);
+    curve(ctx, -0.5, TW_N - 0.5, 0.05, X, function (t) { return mid - y(t) * amp; }, c.acc, 1.5, 0.6);
+    for (n = 0; n < TW_N; n++) dot(ctx, X(n), mid - y(n) * amp, 2.8, c.acc);
+    label(ctx, "y[n]: the output (blue), input faint behind it", pl, rowH + 15, c.muted);
+
+    var rp = prep($("twResp")), rc = rp.ctx, x0 = 36, x1 = rp.w - 12, y0 = 10, y1 = rp.h - 24;
+    function GY(v) { return y1 - v * (y1 - y0); }
+    freqTicks(rc, x0, x1, y0, y1, c);
+    [0, 0.5, 1].forEach(function (v) {
+      seg(rc, x0, GY(v), x1, GY(v), c.line, 1);
+      label(rc, "×" + v, x0 - 6, GY(v) + 4, c.muted, MONO, "right");
+    });
+    rc.strokeStyle = c.acc; rc.lineWidth = 2; rc.beginPath();
+    for (var i = 0; i <= 400; i++) {
+      var fi = FMIN * Math.pow(FMAX / FMIN, i / 400), xx = logX(fi, x0, x1), yy = GY(twMag(2 * Math.PI * fi / FS, s));
+      if (i === 0) rc.moveTo(xx, yy); else rc.lineTo(xx, yy);
+    }
+    rc.stroke();
+    dot(rc, logX(f, x0, x1), GY(g), 5, c.acc2);
+  }
+
+  /* ---------- Figure: phasors ---------- */
+  function rbj(type, f0, Q, gainDb) {
+    var w0 = 2 * Math.PI * f0 / FS, cs = Math.cos(w0), al = Math.sin(w0) / (2 * Q), b, a;
+    if (type === "notch") { b = [1, -2 * cs, 1]; a = [1 + al, -2 * cs, 1 - al]; }
+    else if (type === "hp") { b = [(1 + cs) / 2, -(1 + cs), (1 + cs) / 2]; a = [1 + al, -2 * cs, 1 - al]; }
+    else {
+      var A = Math.pow(10, gainDb / 40);
+      b = [1 + al * A, -2 * cs, 1 - al * A]; a = [1 + al / A, -2 * cs, 1 - al / A];
+    }
+    var a0 = a[0];
+    return { b: b.map(function (v) { return v / a0; }), a: a.map(function (v) { return v / a0; }) };
+  }
+  var W1K = 2 * Math.PI * 1000 / FS;
+  var PRESETS = {
+    avg2: { b: [0.5, 0.5, 0], a: [1, 0, 0],
+      note: "Two equal arrows. At low frequencies they point the same way and add to length 1. As the frequency rises the second arrow swings round, until at 24 kHz it points straight back and cancels the first." },
+    smooth3: { b: [0.25, 0.5, 0.25], a: [1, 0, 0],
+      note: "Three arrows turned by 0, ω and 2ω. They cancel completely at 24 kHz and roll off a little more steeply than the two-sample average." },
+    diff: { b: [0.5, -0.5, 0], a: [1, 0, 0],
+      note: "The second arrow starts out pointing backward, so at 0 Hz the two cancel. By 24 kHz it has swung round to point forward and they add. A low-cut from the same machinery." },
+    firnotch: { b: [1, -2 * Math.cos(W1K), 1], a: [1, 0, 0],
+      note: "Weights 1, −2·cos(ω₀), 1 with ω₀ at 1 kHz. At exactly 1 kHz the three arrows close into a triangle and the tone vanishes. But the bass nearly vanishes too, and by 24 kHz the arrows line up for a 4× boost." },
+    notch: (function () { var f = rbj("notch", 1000, 2); f.note = "The same three weights, plus feedback. The right-hand arrows nearly copy the left-hand ones, so the ratio stays near 1 almost everywhere. Near 1 kHz the weights' total collapses to zero and the feedback total doesn't."; return f; })(),
+    peak: (function () { var f = rbj("peak", 1200, 1.41, -12); f.note = "One EQ band, −12 dB at 1.2 kHz and about an octave wide: the default band in the compute explainer. Away from 1.2 kHz the two totals match; near it the weights' total shrinks to a quarter of the feedback total, which is −12 dB."; return f; })(),
+    lowcut: (function () { var f = rbj("hp", 100, 0.7071); f.note = "Low-cut at 100 Hz. For deep bass the weight arrows nearly cancel and the feedback arrows don't, so the ratio falls toward zero. Above 100 Hz the two totals match."; return f; })()
+  };
+  function getFilter() {
+    var k = $("phPreset").value;
+    if (k === "custom") {
+      return { b: [+$("phB0").value, +$("phB1").value, +$("phB2").value], a: [1, 0, 0],
+        note: "Any three weights you like. Whatever you pick, the total arrow's length at each frequency is the curve below." };
+    }
+    return PRESETS[k];
+  }
+  function sumArrows(co, om) {
+    var re = 0, im = 0;
+    for (var k = 0; k < co.length; k++) { re += co[k] * Math.cos(-k * om); im += co[k] * Math.sin(-k * om); }
+    return Math.hypot(re, im);
+  }
+  function arrow(ctx, x0, y0, x1, y1, col, lw) {
+    var dx = x1 - x0, dy = y1 - y0, L = Math.hypot(dx, dy);
+    ctx.strokeStyle = col; ctx.fillStyle = col; ctx.lineWidth = lw;
+    if (L < 1) { dot(ctx, x0, y0, lw, col); return; }
+    var hl = Math.min(10, L * 0.45), ux = dx / L, uy = dy / L;
+    ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1 - ux * hl * 0.6, y1 - uy * hl * 0.6); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(x1, y1);
+    ctx.lineTo(x1 - hl * ux + hl * 0.45 * uy, y1 - hl * uy - hl * 0.45 * ux);
+    ctx.lineTo(x1 - hl * ux - hl * 0.45 * uy, y1 - hl * uy + hl * 0.45 * ux);
+    ctx.closePath(); ctx.fill();
+  }
+  function drawPhasor(cv, co, names, om, col, title, c) {
+    if (!cv.clientWidth) return;
+    var p = prep(cv), ctx = p.ctx, w = p.w, h = p.h;
+    var R = Math.max(1, co.reduce(function (s, v) { return s + Math.abs(v); }, 0)) * 1.1;
+    var cx = w / 2, cy = h / 2 + 10, sc = (Math.min(w, h - 20) / 2 - 12) / R;
+    seg(ctx, cx - R * sc, cy, cx + R * sc, cy, c.line, 1);
+    seg(ctx, cx, cy - R * sc, cx, cy + R * sc, c.line, 1);
+    ctx.save(); ctx.setLineDash([3, 4]); ctx.strokeStyle = c.line; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.arc(cx, cy, sc, 0, 2 * Math.PI); ctx.stroke(); ctx.restore();
+    label(ctx, title, 10, 18, c.muted);
+    var x = 0, y = 0;
+    for (var k = 0; k < co.length; k++) {
+      if (Math.abs(co[k]) < 1e-9) continue;
+      var dx = co[k] * Math.cos(-k * om), dy = co[k] * Math.sin(-k * om);
+      var X0 = cx + x * sc, Y0 = cy - y * sc, X1 = cx + (x + dx) * sc, Y1 = cy - (y + dy) * sc;
+      arrow(ctx, X0, Y0, X1, Y1, c.ink, 1.5);
+      var L = Math.hypot(X1 - X0, Y1 - Y0) || 1;
+      var mx = (X0 + X1) / 2 + (-(Y1 - Y0) / L) * 11, my = (Y0 + Y1) / 2 + ((X1 - X0) / L) * 11;
+      label(ctx, names[k], mx, my + 4, c.ink, MONO, "center");
+      x += dx; y += dy;
+    }
+    arrow(ctx, cx, cy, cx + x * sc, cy - y * sc, col, 3.2);
+    label(ctx, "total " + num(Math.hypot(x, y)), w - 10, 18, col, MONO, "right");
+  }
+  function eqString(F) {
+    var terms = [[F.b[0], "x[n]"], [F.b[1], "x[n−1]"], [F.b[2], "x[n−2]"], [-F.a[1], "y[n−1]"], [-F.a[2], "y[n−2]"]];
+    var s = "y[n] =", first = true;
+    terms.forEach(function (t) {
+      if (Math.abs(t[0]) < 1e-9) return;
+      var v = Math.abs(t[0]).toFixed(3);
+      if (first) { s += " " + (t[0] < 0 ? "−" : "") + v + "·" + t[1]; first = false; }
+      else s += (t[0] < 0 ? " − " : " + ") + v + "·" + t[1];
+    });
+    return s;
+  }
+  function drawPh() {
+    var F = getFilter(), c = colors();
+    var custom = $("phPreset").value === "custom";
+    $("phCustom").hidden = !custom;
+    ["phB0", "phB1", "phB2"].forEach(function (id) { $(id + "Out").textContent = num(+$(id).value); });
+    var fb = Math.abs(F.a[1]) > 1e-9 || Math.abs(F.a[2]) > 1e-9;
+    $("phDenWrap").hidden = !fb;
+    $("phNaWrap").hidden = !fb;
+    var f = sliderToHz(+$("phFreq").value), om = 2 * Math.PI * f / FS;
+    $("phFreqOut").textContent = fmtHz(f);
+    $("phDeg").textContent = (om * 180 / Math.PI).toFixed(om < 0.1 ? 2 : 1) + "°";
+    $("phEq").textContent = eqString(F);
+    $("phNote").textContent = F.note;
+
+    drawPhasor($("phNum"), F.b, ["b0", "b1", "b2"], om, c.acc, fb ? "weights (top of the ratio)" : "weights", c);
+    if (fb) drawPhasor($("phDen"), F.a, ["1", "a1", "a2"], om, c.acc2, "feedback (bottom of the ratio)", c);
+    var nb = sumArrows(F.b, om), na = sumArrows(F.a, om), g = nb / na;
+    $("phNb").textContent = num(nb, 3);
+    $("phNa").textContent = num(na, 3);
+    $("phGainK").textContent = fb ? "Gain = weights ÷ feedback" : "Gain = weights total";
+    $("phGain").textContent = "×" + num(g, 3) + " · " + dbStr(g);
+
+    var rp = prep($("phResp")), rc = rp.ctx, x0 = 40, x1 = rp.w - 12, y0 = 10, y1 = rp.h - 24;
+    var DMAX = 15, DMIN = -36;
+    function DY(d) { return y1 - (Math.max(DMIN, Math.min(DMAX, d)) - DMIN) / (DMAX - DMIN) * (y1 - y0); }
+    freqTicks(rc, x0, x1, y0, y1, c);
+    [12, 0, -12, -24, -36].forEach(function (d) {
+      seg(rc, x0, DY(d), x1, DY(d), d === 0 ? c.muted : c.line, 1);
+      label(rc, (d > 0 ? "+" : "") + num(d, 0), x0 - 6, DY(d) + 4, c.muted, MONO, "right");
+    });
+    rc.save();
+    rc.beginPath(); rc.rect(x0, y0 - 2, x1 - x0, y1 - y0 + 4); rc.clip();
+    rc.strokeStyle = c.acc; rc.lineWidth = 2; rc.beginPath();
+    for (var i = 0; i <= 600; i++) {
+      var fi = FMIN * Math.pow(FMAX / FMIN, i / 600), oi = 2 * Math.PI * fi / FS;
+      var gi = sumArrows(F.b, oi) / sumArrows(F.a, oi);
+      var xx = logX(fi, x0, x1), yy = DY(20 * Math.log10(Math.max(gi, 1e-6)));
+      if (i === 0) rc.moveTo(xx, yy); else rc.lineTo(xx, yy);
+    }
+    rc.stroke();
+    rc.restore();
+    dot(rc, logX(f, x0, x1), DY(20 * Math.log10(Math.max(g, 1e-6))), 5, c.acc2);
+  }
+
+  /* ---------- Figure: matrix factorization ---------- */
+  function drawMatrix() {
+    var n = 8, s = "";
+    var b = [0.25, 0.5, 0.25];
+    function cell(x, y, size, cls, op) {
+      s += '<rect x="' + x + '" y="' + y + '" width="' + size + '" height="' + size + '" class="' + cls + '"' +
+        (op === undefined ? "" : ' fill-opacity="' + op.toFixed(2) + '"') + "/>";
+    }
+    function text(x, y, cls, t, anchor) {
+      s += '<text x="' + x + '" y="' + y + '" class="' + cls + '"' + (anchor ? ' text-anchor="' + anchor + '"' : "") + ">" + t + "</text>";
+    }
+    var cs = 18, tx = 10, ty = 40;
+    for (var i = 0; i < n; i++) for (var j = 0; j < n; j++) {
+      var d = (i - j + n) % n, wrap = i - j < 0;
+      if (d <= 2) cell(tx + j * cs, ty + i * cs, cs, "m-a", [1, 0.6, 0.3][d] * (wrap ? 0.45 : 1));
+      else cell(tx + j * cs, ty + i * cs, cs, "m-0");
+    }
+    text(tx + n * cs / 2, 26, "d-text", "T", "middle");
+    text(tx + n * cs / 2, ty + n * cs + 22, "d-small", "time basis: 3 diagonals", "middle");
+    text(175, 128, "d-big", "=", "middle");
+    var ms = 13, my = 56, blocks = [
+      { x: 200, kind: "F", name: "F⁻¹", sub: "back to time" },
+      { x: 314, kind: "D", name: "diag(Ĥ)", sub: "your vector" },
+      { x: 428, kind: "F", name: "F", sub: "into frequencies" }
+    ];
+    blocks.forEach(function (blk, bi) {
+      for (var i = 0; i < n; i++) for (var j = 0; j < n; j++) {
+        if (blk.kind === "F") {
+          cell(blk.x + j * ms, my + i * ms, ms, "m-w", 0.15 + 0.7 * (0.5 + 0.5 * Math.cos(2 * Math.PI * i * j / n)));
+        } else if (i === j) {
+          var om = 2 * Math.PI * Math.min(i, n - i) / n;
+          var H = Math.abs(b[0] + b[1] * Math.cos(om) + b[2] * Math.cos(2 * om)); // |H| for this symmetric filter
+          H = Math.pow(Math.cos(om / 2), 2);
+          cell(blk.x + j * ms, my + i * ms, ms, "m-a", Math.max(0.06, H));
+        } else cell(blk.x + j * ms, my + i * ms, ms, "m-0");
+      }
+      text(blk.x + n * ms / 2, 42, "d-text", blk.name, "middle");
+      text(blk.x + n * ms / 2, my + n * ms + 20, "d-small", blk.sub, "middle");
+      if (bi < 2) text(blk.x + n * ms + 9, 128, "d-text", "·", "middle");
+    });
+    text(560, 128, "d-text", "", "middle");
+    $("matSvg").innerHTML = s;
+  }
+
+  /* ---------- Figure: spectrogram ---------- */
+  var SP = { sig: null, cache: {}, HOP: 256, FTOP: 2500 };
+  var SIG_LEN = Math.round(1.6 * FS);
+  function synth() {
+    var x = new Float32Array(SIG_LEN);
+    function pluck(f0, t0, amp) {
+      var n0 = Math.round(t0 * FS);
+      for (var k = 1; k <= 30; k++) {
+        var fk = f0 * k; if (fk > 9000) break;
+        var a = amp * Math.pow(1 / k, 0.9) * (k === 1 ? 0.7 : 1);
+        var g = Math.exp(-(1.5 + 0.8 * k) / FS), w = 2 * Math.PI * fk / FS, ph = k * 1.7, env = a;
+        for (var n = n0; n < SIG_LEN; n++) {
+          x[n] += env * Math.sin(w * (n - n0) + ph);
+          env *= g; if (env < 1e-5) break;
+        }
+      }
+    }
+    [82.41, 123.47, 164.81, 207.65, 246.94, 329.63].forEach(function (f, i) { pluck(f, 0.08 + i * 0.014, 0.25); });
+    pluck(659.25, 0.9, 0.35);
+    pluck(493.88, 1.2, 0.35);
+    var peak = 0; for (var i = 0; i < SIG_LEN; i++) peak = Math.max(peak, Math.abs(x[i]));
+    for (i = 0; i < SIG_LEN; i++) x[i] *= 0.9 / peak;
+    return x;
+  }
+  function fft(re, im) {
+    var n = re.length, i, j, k, len, t;
+    for (i = 1, j = 0; i < n; i++) {
+      var bit = n >> 1;
+      for (; j & bit; bit >>= 1) j ^= bit;
+      j ^= bit;
+      if (i < j) { t = re[i]; re[i] = re[j]; re[j] = t; t = im[i]; im[i] = im[j]; im[j] = t; }
+    }
+    for (len = 2; len <= n; len <<= 1) {
+      var ang = -2 * Math.PI / len, half = len >> 1;
+      for (k = 0; k < half; k++) {
+        var cr = Math.cos(ang * k), ci = Math.sin(ang * k);
+        for (i = k; i < n; i += len) {
+          var b = i + half;
+          var tr = re[b] * cr - im[b] * ci, ti = re[b] * ci + im[b] * cr;
+          re[b] = re[i] - tr; im[b] = im[i] - ti; re[i] += tr; im[i] += ti;
+        }
+      }
+    }
+  }
+  function spectro(N) {
+    if (SP.cache[N]) return SP.cache[N];
+    var x = SP.sig, L = x.length, hop = SP.HOP, frames = Math.floor(L / hop);
+    var df = FS / N, bins = Math.min(N / 2 + 1, Math.ceil(SP.FTOP / df) + 1);
+    var win = new Float64Array(N), wsum = 0, i;
+    for (i = 0; i < N; i++) { win[i] = 0.5 - 0.5 * Math.cos(2 * Math.PI * i / N); wsum += win[i]; }
+    var re = new Float64Array(N), im = new Float64Array(N), data = new Float32Array(frames * bins), dmax = -Infinity;
+    for (var fr = 0; fr < frames; fr++) {
+      var c0 = fr * hop - N / 2;
+      for (i = 0; i < N; i++) { var idx = c0 + i; re[i] = idx >= 0 && idx < L ? x[idx] * win[i] : 0; im[i] = 0; }
+      fft(re, im);
+      for (var k = 0; k < bins; k++) {
+        var db = 20 * Math.log10(2 * Math.hypot(re[k], im[k]) / wsum + 1e-9);
+        data[fr * bins + k] = db; if (db > dmax) dmax = db;
+      }
+    }
+    return (SP.cache[N] = { N: N, frames: frames, bins: bins, df: df, data: data, dmax: dmax });
+  }
+  function rgb(hex) {
+    hex = hex.replace("#", "");
+    if (hex.length === 3) hex = hex.split("").map(function (ch) { return ch + ch; }).join("");
+    return [parseInt(hex.slice(0, 2), 16), parseInt(hex.slice(2, 4), 16), parseInt(hex.slice(4, 6), 16)];
+  }
+  function mix(a, b, t) { return [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t]; }
+  var RANGE = 70;
+  function drawSpec() {
+    if (!SP.sig || !$("specCanvas").clientWidth) return;
+    var N = +$("spWin").value, S = spectro(N), c = colors();
+    var fr = Math.min(+$("spT").value, S.frames - 1), tSec = fr * SP.HOP / FS;
+    $("spTOut").textContent = tSec.toFixed(2) + " s";
+    $("spUses").textContent = N.toLocaleString("en-US") + " samples = " + (N / FS * 1000).toFixed(1) + " ms";
+    $("spBin").textContent = S.df.toFixed(1) + " Hz apart";
+
+    var x0 = 46, PAD_R = 10;
+    function TX(t, x1) { return x0 + (t * FS / SP.HOP + 0.5) / S.frames * (x1 - x0); }
+
+    // waveform strip
+    var wp = prep($("waveCanvas")), wc = wp.ctx, wx1 = wp.w - PAD_R, wmid = wp.h / 2, wamp = wp.h / 2 - 6;
+    var wL = TX(tSec - N / 2 / FS, wx1), wR = TX(tSec + N / 2 / FS, wx1);
+    wc.fillStyle = c.soft2; wc.fillRect(Math.max(x0, wL), 0, Math.min(wx1, wR) - Math.max(x0, wL), wp.h);
+    seg(wc, x0, wmid, wx1, wmid, c.line, 1);
+    wc.strokeStyle = c.ink; wc.lineWidth = 1; wc.beginPath();
+    var px = wx1 - x0;
+    for (var p = 0; p < px; p++) {
+      var s0 = Math.floor(p / px * SIG_LEN), s1 = Math.floor((p + 1) / px * SIG_LEN), lo = 0, hi = 0;
+      for (var si = s0; si < s1; si++) { var v = SP.sig[si]; if (v < lo) lo = v; if (v > hi) hi = v; }
+      wc.moveTo(x0 + p + 0.5, wmid - hi * wamp); wc.lineTo(x0 + p + 0.5, wmid - lo * wamp + 0.5);
+    }
+    wc.stroke();
+    label(wc, "stream", 0, wmid + 4, c.muted, MONO);
+
+    // spectrogram image
+    var sp = prep($("specCanvas")), ctx = sp.ctx, x1 = sp.w - PAD_R, y0 = 6, y1 = sp.h - 24;
+    var off = document.createElement("canvas"); off.width = S.frames; off.height = S.bins;
+    var octx = off.getContext("2d"), img = octx.createImageData(S.frames, S.bins);
+    var cb = rgb(c.bg), ca = rgb(c.acc), ci = rgb(c.ink);
+    for (var f = 0; f < S.frames; f++) for (var k = 0; k < S.bins; k++) {
+      var t = Math.max(0, Math.min(1, (S.data[f * S.bins + k] - (S.dmax - RANGE)) / RANGE));
+      var col = t < 0.7 ? mix(cb, ca, t / 0.7) : mix(ca, ci, (t - 0.7) / 0.3);
+      var o = ((S.bins - 1 - k) * S.frames + f) * 4;
+      img.data[o] = col[0]; img.data[o + 1] = col[1]; img.data[o + 2] = col[2]; img.data[o + 3] = 255;
+    }
+    octx.putImageData(img, 0, 0);
+    ctx.imageSmoothingEnabled = false;
+    ctx.drawImage(off, 0, 0, S.frames, S.bins, x0, y0, x1 - x0, y1 - y0);
+    function FY(hz) { return y1 - (hz / S.df + 0.5) / S.bins * (y1 - y0); }
+    for (var hz = 0; hz <= SP.FTOP; hz += 500) {
+      var yy = FY(hz); if (yy < y0) break;
+      seg(ctx, x0 - 4, yy, x0, yy, c.muted, 1);
+      label(ctx, hz === 0 ? "0 Hz" : (hz >= 1000 ? (hz / 1000) + "k" : String(hz)), x0 - 7, yy + 4, c.muted, MONO, "right");
+    }
+    for (var ts = 0; ts <= 1.6; ts += 0.4) {
+      var xx = TX(ts, x1);
+      label(ctx, ts.toFixed(1) + " s", xx, y1 + 16, c.muted, MONO, ts === 0 ? "left" : (ts > 1.5 ? "right" : "center"));
+    }
+    var sL = TX(tSec - N / 2 / FS, x1), sR = TX(tSec + N / 2 / FS, x1);
+    ctx.save();
+    ctx.setLineDash([4, 3]); ctx.strokeStyle = c.acc2; ctx.lineWidth = 1.5;
+    ctx.strokeRect(Math.max(x0, sL), y0, Math.min(x1, sR) - Math.max(x0, sL), y1 - y0);
+    ctx.restore();
+    seg(ctx, TX(tSec, x1), y0, TX(tSec, x1), y1, c.acc2, 2);
+
+    // column as bars
+    var cp = prep($("colCanvas")), cc = cp.ctx, cx1 = cp.w - PAD_R, cy0 = 8, cy1 = cp.h - 24;
+    var fTop = (S.bins - 0.5) * S.df;
+    function CX(hz) { return x0 + (hz + S.df / 2) / (fTop + S.df / 2) * (cx1 - x0); }
+    seg(cc, x0, cy1, cx1, cy1, c.line, 1);
+    cc.fillStyle = c.acc;
+    for (k = 0; k < S.bins; k++) {
+      var tt = Math.max(0, Math.min(1, (S.data[fr * S.bins + k] - (S.dmax - RANGE)) / RANGE));
+      var bx0 = CX(k * S.df - S.df / 2), bx1 = CX(k * S.df + S.df / 2);
+      var bwid = Math.max(1, bx1 - bx0 - (bx1 - bx0 > 4 ? 1 : 0));
+      cc.fillRect(bx0, cy1 - tt * (cy1 - cy0), bwid, tt * (cy1 - cy0));
+    }
+    for (hz = 0; hz <= SP.FTOP; hz += 500) {
+      var cxx = CX(hz); if (cxx > cx1 + 1) break;
+      label(cc, hz === 0 ? "0" : (hz >= 1000 ? (hz / 1000) + "k" : String(hz)), cxx, cy1 + 15, c.muted, MONO, "center");
+    }
+    label(cc, S.bins + " of " + (N / 2 + 1).toLocaleString("en-US") + " bins shown", cx1, 14, c.muted, MONO, "right");
+    label(cc, "level", 0, cy0 + 10, c.muted, MONO);
+  }
+
+  /* ---------- wiring ---------- */
+  function drawAll() { drawSup(); drawTwo(); drawPh(); drawMatrix(); drawSpec(); }
+  $("supN").addEventListener("input", drawSup);
+  ["twMode", "twFreq"].forEach(function (id) { $(id).addEventListener("input", drawTwo); });
+  ["phPreset", "phFreq", "phB0", "phB1", "phB2"].forEach(function (id) { $(id).addEventListener("input", drawPh); });
+  ["spWin", "spT"].forEach(function (id) { $(id).addEventListener("input", drawSpec); });
+  var raf = 0;
+  window.addEventListener("resize", function () { cancelAnimationFrame(raf); raf = requestAnimationFrame(drawAll); });
+  if (window.matchMedia) {
+    var mq = window.matchMedia("(prefers-color-scheme: dark)");
+    if (mq.addEventListener) mq.addEventListener("change", drawAll);
+  }
+  new MutationObserver(drawAll).observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(drawAll);
+  drawAll();
+  setTimeout(function () { SP.sig = synth(); $("spT").max = Math.floor(SIG_LEN / SP.HOP) - 1; drawSpec(); }, 30);
+})();
+</script>
+</body>
+</html>
