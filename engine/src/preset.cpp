@@ -1,5 +1,6 @@
 #include "fx/preset.h"
 
+#include <cstdint>
 #include <fstream>
 #include <sstream>
 
@@ -46,14 +47,25 @@ Preset parsePreset(const json& j) {
     p.description = j["description"].get<std::string>();
   }
 
+  auto badBufferSize = [](const std::string& got) {
+    fail("'buffer_size' must be a power of two in [" + std::to_string(kMinBufferSize) + ", " +
+         std::to_string(kMaxBufferSize) + "], got " + got);
+  };
   if (j.contains("buffer_size")) {
-    if (!j["buffer_size"].is_number_integer()) fail("'buffer_size' must be an integer");
-    p.bufferSize = j["buffer_size"].get<int>();
+    const json& b = j["buffer_size"];
+    if (!b.is_number_integer()) fail("'buffer_size' must be an integer");
+    // Range-check in 64 bits before narrowing: get<int>() would silently
+    // truncate, e.g. 4294967424 (2^32 + 128) to 128.
+    const bool inRange = b.is_number_unsigned()
+                             ? b.get<std::uint64_t>() <= static_cast<std::uint64_t>(kMaxBufferSize)
+                             : b.get<std::int64_t>() >= kMinBufferSize &&
+                                   b.get<std::int64_t>() <= kMaxBufferSize;
+    if (!inRange) badBufferSize(b.dump());
+    p.bufferSize = b.get<int>();
   }
   if (!isPowerOfTwo(p.bufferSize) || p.bufferSize < kMinBufferSize ||
       p.bufferSize > kMaxBufferSize) {
-    fail("'buffer_size' must be a power of two in [" + std::to_string(kMinBufferSize) + ", " +
-         std::to_string(kMaxBufferSize) + "], got " + std::to_string(p.bufferSize));
+    badBufferSize(std::to_string(p.bufferSize));
   }
 
   if (!j.contains("chain") || !j["chain"].is_array()) fail("'chain' must be an array");

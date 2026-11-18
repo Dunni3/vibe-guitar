@@ -279,6 +279,10 @@ TEST(preset_validation_errors) {
   bad("{" + head + R"("chain": [], "colour": 1})", "unknown preset key 'colour'", __LINE__);
   bad("{" + head + R"("buffer_size": 100, "chain": []})", "power of two", __LINE__);
   bad("{" + head + R"("buffer_size": 8, "chain": []})", "power of two", __LINE__);
+  // Huge values must not be narrowed to int first (2^32 + 128 used to pass as 128).
+  bad("{" + head + R"("buffer_size": 4294967424, "chain": []})", "got 4294967424", __LINE__);
+  bad("{" + head + R"("buffer_size": -4294967168, "chain": []})", "power of two", __LINE__);
+  bad("{" + head + R"("buffer_size": 18446744073709551615, "chain": []})", "power of two", __LINE__);
   bad("{" + head + R"("chain": [{"effect": "fuzz"}]})", "unknown effect 'fuzz'", __LINE__);
   bad("{" + head + R"("chain": [{"effect": "gain", "params": {"gian_db": 1}}]})", "no param 'gian_db'", __LINE__);
   bad("{" + head + R"("chain": [{"effect": "gain", "params": {"gain_db": 99}}]})", "outside", __LINE__);

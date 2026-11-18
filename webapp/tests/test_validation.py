@@ -69,6 +69,10 @@ CORPUS = {
     "buf_float": variant(buffer_size=128.0),
     "buf_neg": variant(buffer_size=-128),
     "buf_str": variant(buffer_size="128"),
+    # Used to pass the C++ check as 128 (narrowed to int before the range check).
+    "buf_2pow32_plus_128": variant(buffer_size=2**32 + 128),
+    "buf_neg_2pow32_plus_128": variant(buffer_size=-(2**32) + 128),
+    "buf_uint64_max": variant(buffer_size=2**64 - 1),
     "chain_missing": variant(chain=DROP),
     "chain_object": variant(chain={}),
     "slot_not_object": variant(chain=["gain"]),
