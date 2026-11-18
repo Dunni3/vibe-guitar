@@ -42,7 +42,8 @@ ssh ian@fxbox.local mkdir -p fxbox-setup && scp pi/* ian@fxbox.local:fxbox-setup
 ssh -t ian@fxbox.local 'sudo bash ~/fxbox-setup/setup-hotspot.sh'
 ```
 
-It asks for a hotspot password once (8-63 characters) and keeps it only on the Pi, in the
+After the sudo password, it asks you to **make up** the hotspot password (8-63 characters,
+typed twice; it's what the phone uses to join `fxbox`). It's kept only on the Pi, in the
 root-only NetworkManager keyfile `/etc/NetworkManager/system-connections/fxbox-hotspot.nmconnection`.
 It is never in the repo. Re-running keeps the password; `--new-password` changes it;
 `--uninstall` removes everything. Running the setup doesn't switch networks, so it's safe over SSH.
