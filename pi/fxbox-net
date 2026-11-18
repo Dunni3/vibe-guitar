@@ -1,0 +1,215 @@
+#!/bin/bash
+# fxbox-net: switch the Pi between home Wi-Fi and its own hotspot.
+#
+#   fxbox-net status            show the mode, IP, hotspot clients (no root needed)
+#   fxbox-net home              join home Wi-Fi; if that fails, go back to the hotspot
+#   fxbox-net hotspot           start the hotspot (drops home Wi-Fi and SSH over it)
+#   fxbox-net auto              boot logic: wait for home Wi-Fi, else start the hotspot
+#   fxbox-net trial [SECONDS]   self-test: pretend home is gone, fall back to the
+#                               hotspot, hold it SECONDS (default 300), then return home
+#
+# Installed to /usr/local/bin by setup-hotspot.sh. Settings live in
+# /etc/default/fxbox-net. Every change is logged to the journal:
+#   journalctl -t fxbox-net -u fxbox-net-fallback -u fxbox-net-trial
+#
+# This only drives NetworkManager; it never touches the audio engine.
+
+set -u
+
+CONFIG=/etc/default/fxbox-net
+IFACE=wlan0
+HOTSPOT_CON=fxbox-hotspot
+HOTSPOT_IP=10.42.0.1
+BOOT_WAIT=40        # seconds to wait for home Wi-Fi at boot
+HOME_WAIT=30        # seconds to let one home connection attempt run
+HOME_CONNECTIONS="" # NM connection names/UUIDs to try for home; empty = every client Wi-Fi profile
+# shellcheck source=/dev/null
+[ -r "$CONFIG" ] && . "$CONFIG"
+
+LOCK=/run/fxbox-net.lock
+
+log() {
+    echo "fxbox-net: $*"
+    # Under systemd stdout already goes to the journal; from a terminal, log too.
+    if [ -t 1 ]; then logger -t fxbox-net -- "$*" 2>/dev/null || true; fi
+}
+die() { log "error: $*"; exit 1; }
+
+need_root() {
+    [ "$(id -u)" -eq 0 ] || die "'$1' changes the network; run it with sudo"
+}
+
+lock() {
+    exec 9>"$LOCK" || die "cannot open $LOCK"
+    flock -w 180 9 || die "another fxbox-net is still running"
+}
+unlock() { flock -u 9 2>/dev/null || true; }
+
+# UUID and state of the connection active on $IFACE (state: activating/activated/...).
+active_uuid() { nmcli -t -f UUID,DEVICE con show --active | awk -F: -v d="$IFACE" '$2==d {print $1; exit}'; }
+active_state() { nmcli -t -f DEVICE,STATE con show --active | awk -F: -v d="$IFACE" '$1==d {print $2; exit}'; }
+con_mode() { nmcli -g 802-11-wireless.mode con show "$1" 2>/dev/null; }
+con_name() { nmcli -g connection.id con show "$1" 2>/dev/null; }
+
+# home | hotspot | connecting | none
+current_mode() {
+    local uuid state
+    uuid=$(active_uuid)
+    [ -n "$uuid" ] || { echo none; return; }
+    if [ "$(con_mode "$uuid")" = ap ]; then echo hotspot; return; fi
+    state=$(active_state)
+    if [ "$state" = activated ]; then echo home; else echo connecting; fi
+}
+
+# Client (non-AP) Wi-Fi profiles, one UUID per line.
+home_connections() {
+    local c uuid type
+    if [ -n "$HOME_CONNECTIONS" ]; then
+        for c in $HOME_CONNECTIONS; do nmcli -g connection.uuid con show "$c" 2>/dev/null; done
+        return
+    fi
+    nmcli -t -f UUID,TYPE con show | while IFS=: read -r uuid type; do
+        [ "$type" = 802-11-wireless ] || continue
+        [ "$(con_mode "$uuid")" = ap ] && continue
+        echo "$uuid"
+    done
+}
+
+hotspot_clients() {
+    /usr/sbin/iw dev "$IFACE" station dump 2>/dev/null | grep -c '^Station' || true
+}
+
+start_hotspot() {
+    if [ "$(current_mode)" = hotspot ]; then log "hotspot already up"; return 0; fi
+    nmcli -t -f NAME con show | grep -qx "$HOTSPOT_CON" ||
+        die "no '$HOTSPOT_CON' profile; run setup-hotspot.sh first"
+    log "starting hotspot '$HOTSPOT_CON'"
+    if nmcli --wait 30 con up "$HOTSPOT_CON" >/dev/null; then
+        log "hotspot up: join Wi-Fi 'fxbox', open http://fxbox.local:8080 or http://$HOTSPOT_IP:8080"
+        return 0
+    fi
+    log "hotspot failed to start"
+    return 1
+}
+
+join_home() {
+    local uuid name
+    if [ "$(current_mode)" = hotspot ]; then
+        log "stopping hotspot"
+        nmcli con down "$HOTSPOT_CON" >/dev/null 2>&1 || true
+        # The radio has been an AP, so its scan list is empty; rescan before joining.
+        sleep 2
+        nmcli dev wifi rescan ifname "$IFACE" >/dev/null 2>&1 || true
+        sleep 4
+    fi
+    for uuid in $(home_connections); do
+        name=$(con_name "$uuid")
+        log "joining home Wi-Fi '$name'"
+        if nmcli --wait "$HOME_WAIT" con up "$uuid" >/dev/null 2>&1; then
+            log "connected to '$name' ($(ip4))"
+            return 0
+        fi
+        log "could not join '$name'"
+    done
+    return 1
+}
+
+ip4() { ip -4 -o addr show dev "$IFACE" 2>/dev/null | awk '{print $4}' | head -1; }
+
+cmd_status() {
+    local mode uuid
+    mode=$(current_mode)
+    uuid=$(active_uuid)
+    echo "mode:       $mode"
+    [ -n "$uuid" ] && echo "connection: $(con_name "$uuid")"
+    echo "address:    $(ip4)"
+    if [ "$mode" = hotspot ]; then
+        echo "clients:    $(hotspot_clients)"
+        echo "web app:    http://fxbox.local:8080  or  http://$HOTSPOT_IP:8080"
+    fi
+}
+
+cmd_home() {
+    need_root home; lock
+    if [ "$(current_mode)" = home ]; then log "already on home Wi-Fi"; return 0; fi
+    join_home && return 0
+    log "home Wi-Fi not available; going back to the hotspot"
+    start_hotspot
+    return 1
+}
+
+cmd_hotspot() {
+    need_root hotspot; lock
+    start_hotspot
+}
+
+# Wait for NetworkManager's own autoconnect to reach home Wi-Fi; if it hasn't
+# within BOOT_WAIT seconds, start the hotspot. Does not retry home afterwards.
+wait_then_fallback() {
+    local waited=0 mode
+    log "waiting up to ${BOOT_WAIT}s for home Wi-Fi"
+    while :; do
+        mode=$(current_mode)
+        case $mode in
+            home) log "on home Wi-Fi '$(con_name "$(active_uuid)")' ($(ip4)); no hotspot"; return 0 ;;
+            hotspot) log "hotspot already up"; return 0 ;;
+        esac
+        # Give an attempt that is mid-handshake 20 s more before cutting it off.
+        if [ "$waited" -ge "$BOOT_WAIT" ]; then
+            [ "$mode" = connecting ] && [ "$waited" -lt $((BOOT_WAIT + 20)) ] || break
+        fi
+        sleep 2; waited=$((waited + 2))
+    done
+    log "no home Wi-Fi after ${waited}s"
+    start_hotspot
+}
+
+cmd_auto() {
+    need_root auto; lock
+    wait_then_fallback
+}
+
+cmd_trial() {
+    local hold=${1:-300}
+    need_root trial
+    case $hold in ''|*[!0-9]*) die "trial: SECONDS must be a number" ;; esac
+    # SSH over home Wi-Fi dies during the trial, so run it as its own systemd unit.
+    if [ "${FXBOX_NET_DETACHED:-}" != 1 ]; then
+        systemctl reset-failed fxbox-net-trial >/dev/null 2>&1 || true
+        systemd-run --unit=fxbox-net-trial --collect --quiet \
+            --setenv=FXBOX_NET_DETACHED=1 -p Nice=10 -p IOSchedulingClass=idle \
+            /usr/local/bin/fxbox-net trial "$hold" || die "could not start the trial unit"
+        echo "Trial started. In ~${BOOT_WAIT}s the Pi drops home Wi-Fi and starts the 'fxbox' hotspot,"
+        echo "holds it ${hold}s, then rejoins home. Watch later with: journalctl -u fxbox-net-trial"
+        return 0
+    fi
+    lock
+    log "trial: pretending home Wi-Fi is gone (hold ${hold}s)"
+    local uuid
+    uuid=$(active_uuid)
+    # A user-requested 'down' also stops NM from auto-rejoining it during the wait.
+    [ -n "$uuid" ] && [ "$(con_mode "$uuid")" != ap ] && nmcli con down "$uuid" >/dev/null 2>&1
+    wait_then_fallback || { log "trial: hotspot failed; rejoining home"; join_home; return 1; }
+    unlock
+    local t=0
+    while [ "$t" -lt "$hold" ]; do
+        sleep 15; t=$((t + 15))
+        log "trial: ${t}s in hotspot, clients=$(hotspot_clients)"
+    done
+    lock
+    log "trial: rejoining home Wi-Fi"
+    join_home && { log "trial: done, back on home Wi-Fi"; return 0; }
+    log "trial: home Wi-Fi failed; staying on the hotspot"
+    start_hotspot
+    return 1
+}
+
+case ${1:-status} in
+    status) cmd_status ;;
+    home) cmd_home ;;
+    hotspot) cmd_hotspot ;;
+    auto) cmd_auto ;;
+    trial) shift; cmd_trial "$@" ;;
+    -h|--help|help) sed -n '2,15p' "$0" | sed 's/^# \{0,1\}//' ;;
+    *) echo "usage: fxbox-net status|home|hotspot|auto|trial [SECONDS]" >&2; exit 2 ;;
+esac

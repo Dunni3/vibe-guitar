@@ -20,6 +20,7 @@ harness/fxharness/        Python: test signal generator, profiling harness
 webapp/fxweb/             Python web app: API, engine interface (FakeEngine for now), static UI
 webapp/tests/             Web app tests, incl. Python-vs-C++ preset validator agreement
 webapp/guitar-fx-web@.service   systemd unit for the Pi (niced, off the audio core)
+pi/                       Pi system setup: Wi-Fi hotspot fallback + fxbox-net switch
 test_audio/               Generated signals (gitignored); put real recordings in recordings/
 profiles/                 Profiling output (gitignored)
 ```
@@ -78,6 +79,14 @@ sudo cp webapp/guitar-fx-web@.service /etc/systemd/system/
 sudo systemctl daemon-reload
 sudo systemctl enable --now guitar-fx-web@$USER    # assumes the repo is at ~/vibe-guitar
 ```
+
+## Offline (no internet): the Pi's own hotspot
+
+If the Pi can't join home Wi-Fi within ~40 s of booting, it starts its own Wi-Fi network `fxbox`
+(WPA2; password set on the Pi, not in the repo). Join it on the phone and open
+`http://fxbox.local:8080` (or `http://10.42.0.1:8080`). Switch by hand with
+`sudo fxbox-net home|hotspot`; `fxbox-net status` shows where it is. Setup, design and testing:
+[pi/README.md](pi/README.md).
 
 ## Adding an effect
 

@@ -1,0 +1,23 @@
+# At boot: give NetworkManager BOOT_WAIT seconds (default 40, set in
+# /etc/default/fxbox-net) to join home Wi-Fi; if it hasn't, start the 'fxbox'
+# hotspot. Installed by pi/setup-hotspot.sh. Logs:
+#   journalctl -u fxbox-net-fallback
+#
+# Type=exec, so boot doesn't wait on it. Low priority so it can never compete
+# with the audio thread (it is a shell loop that sleeps most of the time).
+
+[Unit]
+Description=Guitar FX box: hotspot fallback when home Wi-Fi is missing
+Wants=NetworkManager.service
+After=NetworkManager.service
+
+[Service]
+Type=exec
+ExecStart=/usr/local/bin/fxbox-net auto
+Nice=10
+IOSchedulingClass=idle
+# Pi 5 has cores 0-3. If the audio engine is pinned to core 3, keep this off it:
+# CPUAffinity=0-2
+
+[Install]
+WantedBy=multi-user.target
