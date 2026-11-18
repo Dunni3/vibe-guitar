@@ -1,0 +1,13 @@
+# Settings for fxbox-net (installed as /etc/default/fxbox-net; setup-hotspot.sh
+# never overwrites an existing copy).
+
+# Seconds to wait for home Wi-Fi at boot before starting the hotspot.
+BOOT_WAIT=40
+
+# Seconds to let one attempt to join home Wi-Fi run.
+HOME_WAIT=30
+
+# NetworkManager connection names or UUIDs to try as "home", space-separated.
+# Empty = every client (non-hotspot) Wi-Fi profile, which is what you want
+# unless there are several and one should win.
+HOME_CONNECTIONS=""
