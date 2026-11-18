@@ -1,17 +1,29 @@
 [project]
 name = "guitar-fx"
 version = "0.1.0"
-description = "Offline tooling for the guitar FX box: test signals and the profiling harness."
+description = "Tooling for the guitar FX box: test signals, the profiling harness and the web app."
 requires-python = ">=3.11"
 dependencies = ["numpy>=1.26"]
+
+[project.optional-dependencies]
+# The web app (M5). On the Pi: `uv sync --extra webapp` once while online.
+webapp = ["fastapi>=0.110", "uvicorn>=0.29"]
+
+[dependency-groups]
+dev = ["pytest>=8", "httpx>=0.27"]
 
 [project.scripts]
 fx-signals = "fxharness.signals:main"
 fx-profile = "fxharness.profile:main"
+fx-web = "fxweb.server:main"
 
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
-packages = ["harness/fxharness"]
+packages = ["harness/fxharness", "webapp/fxweb"]
+
+[tool.pytest.ini_options]
+testpaths = ["webapp/tests"]
+filterwarnings = ["ignore:Using `httpx` with `starlette.testclient`"]

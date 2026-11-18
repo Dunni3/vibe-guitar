@@ -17,6 +17,9 @@ engine/
   tests/tests.cpp         Unit tests
 presets/                  Preset JSON files
 harness/fxharness/        Python: test signal generator, profiling harness
+webapp/fxweb/             Python web app: API, engine interface (FakeEngine for now), static UI
+webapp/tests/             Web app tests, incl. Python-vs-C++ preset validator agreement
+webapp/guitar-fx-web@.service   systemd unit for the Pi (niced, off the audio core)
 test_audio/               Generated signals (gitignored); put real recordings in recordings/
 profiles/                 Profiling output (gitignored)
 ```
@@ -37,6 +40,43 @@ make profile              # generate test signals, profile all presets at 32/64/
 ./build/fxrender --preset presets/slapback.json --in test_audio/strum.wav --out out.wav --block 64
 ./build/fxrender --list-effects        # effect + parameter catalog as JSON (for the web app)
 uv run fx-profile --help
+```
+
+## Web app
+
+A phone-friendly page to pick, load, edit and save presets, with a health panel (buffer,
+latency, DSP load, xruns, CPU temp). It runs against a **fake engine** until the Pisound is in:
+loading a preset is tracked and the health numbers are simulated (CPU temp is real on the Pi).
+
+```
+make webapp               # build fxrender, then serve on 0.0.0.0:8080 (PORT=9000 to change)
+make webapp-test          # pytest for the API, engine and validator
+```
+
+Open `http://<pi-address>:8080` on the phone. Everything (HTML, JS, CSS) is served from the Pi,
+with no CDN, so it works with the Pi as its own Wi-Fi hotspot and no internet.
+
+- **Load** a preset by tapping it. **Edit** opens sliders built from the effect catalog
+  (`fxrender --list-effects`: ranges, defaults, units). **Try** plays your edits without
+  saving; **Save** writes `presets/<id>.json` and reloads it if it's the one playing;
+  **Save as…** makes a new file.
+- Presets are validated in Python with the same rules as `engine/src/preset.cpp` (the tests check
+  both agree on every preset and on a corpus of broken ones), then checked with
+  `fxrender --check` before anything is written.
+- The UI only talks to `fxweb.engine.Engine`. A real JACK-backed engine implements the same three
+  methods (`load`, `loaded`, `health`) and registers in `ENGINES`; run with `--engine <name>`.
+- API: `GET /api/presets`, `GET|PUT|DELETE /api/presets/{id}`, `POST /api/presets` (save-as),
+  `POST /api/engine/load`, `GET /api/engine`, `GET /api/health`, `GET /api/catalog`.
+  Interactive docs at `/api/docs`.
+
+On the Pi, once while it has internet: `make build && uv sync --extra webapp`. Then run it as a
+service at low priority (`Nice=10`, idle I/O; uncomment `CPUAffinity=` to keep it off the audio
+core once that's pinned):
+
+```
+sudo cp webapp/guitar-fx-web@.service /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable --now guitar-fx-web@$USER    # assumes the repo is at ~/vibe-guitar
 ```
 
 ## Adding an effect

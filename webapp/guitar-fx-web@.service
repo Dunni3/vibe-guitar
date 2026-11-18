@@ -1,0 +1,37 @@
+# Web app for the guitar FX box, as a systemd template unit. The instance
+# name is the Pi user that owns the checkout at ~/vibe-guitar:
+#
+#   sudo cp webapp/guitar-fx-web@.service /etc/systemd/system/
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now guitar-fx-web@$USER
+#   journalctl -u guitar-fx-web@$USER -f
+#
+# Prerequisites (once, while the Pi has internet): `make build` and
+# `uv sync --extra webapp`. The service runs the venv's script directly, not
+# `uv run`, so it starts with no network (the Pi is often its own hotspot).
+#
+# The web server must never steal time from the audio thread: it runs niced,
+# with idle-class I/O, and can be kept off the audio core with CPUAffinity.
+
+[Unit]
+Description=Guitar FX box web app (%i)
+After=network.target
+# Once the real engine exists, order after it:
+# After=network.target guitar-fx-engine.service
+
+[Service]
+Type=simple
+User=%i
+WorkingDirectory=/home/%i/vibe-guitar
+ExecStart=/home/%i/vibe-guitar/.venv/bin/fx-web --host 0.0.0.0 --port 8080 --engine fake
+Restart=on-failure
+RestartSec=2
+
+# Low priority: control latency doesn't matter, audio deadlines do.
+Nice=10
+IOSchedulingClass=idle
+# Pi 5 has cores 0-3. If the audio engine is pinned to core 3, keep this off it:
+# CPUAffinity=0-2
+
+[Install]
+WantedBy=multi-user.target
