@@ -1,0 +1,951 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Feedback, Unrolled</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=IBM+Plex+Mono:wght@400;500&family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,600;1,8..60,400&display=swap" rel="stylesheet">
+<style>
+/* Layout idea: same column and palette as "What a sample is". The page walks the four equivalent
+   views of a filter in order, and every figure checks a claim by computing it two or three ways. */
+:root {
+  --bg: #f3f5f6;
+  --surface: #ffffff;
+  --ink: #15212b;
+  --muted: #5a6a77;
+  --line: #d3dce2;
+  --accent: #0d6a88;
+  --accent-soft: #dcedf3;
+  --accent-2: #a8406a;
+  --accent-2-soft: #f5e1e9;
+  --warn: #b4541a;
+  --font-display: "Bricolage Grotesque", "Helvetica Neue", Arial, sans-serif;
+  --font-body: "Source Serif 4", Georgia, "Times New Roman", serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0d141a;
+    --surface: #141e26;
+    --ink: #e3eaef;
+    --muted: #91a2af;
+    --line: #283741;
+    --accent: #52b5d6;
+    --accent-soft: #163341;
+    --accent-2: #e2809f;
+    --accent-2-soft: #3a1f2b;
+    --warn: #f0a060;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0d141a;
+  --surface: #141e26;
+  --ink: #e3eaef;
+  --muted: #91a2af;
+  --line: #283741;
+  --accent: #52b5d6;
+  --accent-soft: #163341;
+  --accent-2: #e2809f;
+  --accent-2-soft: #3a1f2b;
+  --warn: #f0a060;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font-body);
+  font-size: 18px;
+  line-height: 1.6;
+}
+main {
+  max-width: 760px;
+  margin: 0 auto;
+  padding: 48px 16px 80px;
+  display: flex;
+  flex-direction: column;
+  gap: 56px;
+}
+h1, h2, h3 { font-family: var(--font-display); line-height: 1.15; text-wrap: balance; margin: 0; }
+h1 { font-size: clamp(2rem, 5vw, 2.8rem); font-weight: 700; letter-spacing: -0.01em; }
+h2 { font-size: 1.6rem; font-weight: 700; }
+h3 { font-size: 1.15rem; font-weight: 500; }
+p { margin: 0; max-width: 65ch; }
+a { color: var(--accent); }
+section { display: flex; flex-direction: column; gap: 18px; }
+header { display: flex; flex-direction: column; gap: 16px; }
+.lede { font-size: 1.15rem; color: var(--muted); }
+.tier { font-family: var(--font-mono); font-size: 0.8rem; color: var(--accent); letter-spacing: 0.02em; }
+code, .mono { font-family: var(--font-mono); font-size: 0.88em; }
+.eq {
+  font-family: var(--font-mono);
+  font-size: 0.95rem;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 12px 16px;
+  overflow-x: auto;
+  white-space: nowrap;
+  margin: 0;
+}
+pre.eq { white-space: pre; line-height: 1.5; }
+.eq .cm { color: var(--muted); }
+.figure {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.figure .scroll { overflow-x: auto; }
+.caption { font-size: 0.9rem; color: var(--muted); }
+.callout { border-left: 3px solid var(--accent); padding: 4px 0 4px 16px; }
+.warn { color: var(--warn); font-family: var(--font-display); font-size: 0.95rem; }
+
+/* diagrams */
+svg.diagram { display: block; width: 100%; min-width: 560px; height: auto; }
+.d-box { fill: var(--surface); stroke: var(--ink); stroke-width: 1.4; }
+.d-hl { fill: var(--accent-soft); stroke: var(--accent); stroke-width: 1.4; }
+.d-out { fill: var(--accent); stroke: var(--accent); stroke-width: 1.4; }
+.d-future { fill: none; stroke: var(--muted); stroke-width: 1.2; stroke-dasharray: 4 3; }
+.d-line { stroke: var(--ink); stroke-width: 1.4; fill: none; }
+.d-fb { stroke: var(--accent-2); stroke-width: 1.6; fill: none; }
+.d-text { fill: var(--ink); font-family: var(--font-mono); font-size: 13px; }
+.d-title { fill: var(--ink); font-family: var(--font-display); font-size: 15px; font-weight: 700; }
+.d-inv { fill: var(--surface); font-family: var(--font-mono); font-size: 13px; }
+.d-small { fill: var(--muted); font-family: var(--font-mono); font-size: 11px; }
+.d-acc { fill: var(--accent); font-family: var(--font-mono); font-size: 12px; }
+.d-acc2 { fill: var(--accent-2); font-family: var(--font-mono); font-size: 12px; }
+.d-head { fill: var(--ink); }
+.d-head-fb { fill: var(--accent-2); }
+
+/* tables */
+table.ledger { width: 100%; border-collapse: collapse; font-size: 0.95rem; }
+.ledger th, .ledger td { text-align: left; padding: 8px 8px; border-bottom: 1px solid var(--line); vertical-align: top; }
+.ledger th { font-family: var(--font-display); font-weight: 500; font-size: 0.85rem; color: var(--muted); }
+.ledger td.name { font-family: var(--font-display); font-weight: 500; white-space: nowrap; }
+
+/* controls */
+.controls { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 14px 20px; }
+.ctl { display: flex; flex-direction: column; gap: 4px; font-family: var(--font-display); font-size: 0.85rem; color: var(--muted); }
+.ctl output { font-family: var(--font-mono); color: var(--ink); font-size: 0.9rem; }
+.ctl .row { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+input[type="range"] { width: 100%; accent-color: var(--accent); }
+select {
+  font: inherit; font-family: var(--font-mono); font-size: 0.9rem;
+  color: var(--ink); background: var(--bg);
+  border: 1px solid var(--line); border-radius: 6px; padding: 6px 8px;
+}
+input:focus-visible, select:focus-visible, button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+canvas { display: block; width: 100%; }
+.readout { font-family: var(--font-mono); font-size: 0.9rem; font-variant-numeric: tabular-nums; overflow-x: auto; white-space: nowrap; }
+.play { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+.play button {
+  font: inherit; font-family: var(--font-display); font-size: 0.9rem;
+  padding: 8px 14px; border-radius: 6px; cursor: pointer;
+  border: 1px solid var(--line); background: var(--bg); color: var(--ink);
+}
+.play button.primary { background: var(--accent); border-color: var(--accent); color: var(--surface); }
+.play button:hover { border-color: var(--accent); }
+.stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; }
+.stat {
+  background: var(--bg); border: 1px solid var(--line); border-radius: 6px;
+  padding: 10px 12px; display: flex; flex-direction: column; gap: 2px;
+}
+.stat .k { font-family: var(--font-display); font-size: 0.8rem; color: var(--muted); }
+.stat .v { font-family: var(--font-mono); font-size: 1.1rem; font-variant-numeric: tabular-nums; }
+.stat .v.acc { color: var(--accent); }
+.stat .v.acc2 { color: var(--accent-2); }
+.pair { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px; }
+.pair > div { background: var(--bg); border: 1px solid var(--line); border-radius: 6px; }
+.plot-title { font-family: var(--font-display); font-weight: 500; font-size: 1rem; margin: 6px 0 0; }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 18px; font-family: var(--font-display); font-size: 0.85rem; color: var(--muted); }
+.legend i { display: inline-block; width: 12px; height: 12px; border-radius: 50%; margin-right: 6px; vertical-align: -1px; }
+.dbscale { display: grid; grid-template-columns: repeat(auto-fit, minmax(84px, 1fr)); gap: 8px; max-width: 65ch; }
+.dbscale > div { background: var(--surface); border: 1px solid var(--line); border-radius: 6px; padding: 8px 10px; display: flex; flex-direction: column; gap: 2px; }
+.dbscale > div.zero { border-color: var(--accent); }
+.dbscale span:first-child { font-family: var(--font-mono); font-size: 1rem; }
+.dbscale span:last-child { font-family: var(--font-mono); font-size: 0.85rem; color: var(--accent); }
+.notes { font-size: 0.95rem; display: flex; flex-direction: column; gap: 10px; }
+
+@media (max-width: 520px) {
+  body { font-size: 17px; }
+  main { padding-top: 32px; gap: 44px; }
+  .figure { padding: 12px; }
+}
+</style>
+</head>
+<body>
+<main>
+
+<header>
+  <span class="tier">Follow-up to <a href="what-is-a-sample.html">A sample is one number</a></span>
+  <h1>Four views of one filter</h1>
+  <p class="lede">The coefficients of the linear combination decide which frequencies come out louder or quieter, and there's an exact mathematical model of that relationship. This page builds it up from the per-sample loop, and checks each claim by computing the same thing two or three independent ways.</p>
+  <div class="figure">
+    <div class="scroll">
+    <svg class="diagram" viewBox="0 0 640 230" role="img" aria-label="Four descriptions of a filter: coefficients, impulse response, poles and zeros, and frequency response, with the calculations that convert between them">
+      <defs>
+        <marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="d-head"/></marker>
+      </defs>
+      <rect x="20" y="20" width="200" height="58" rx="6" class="d-box"/>
+      <text x="34" y="44" class="d-title">Coefficients</text>
+      <text x="34" y="64" class="d-small">b0 b1 b2 a1 a2: what runs</text>
+      <rect x="420" y="20" width="200" height="58" rx="6" class="d-box"/>
+      <text x="434" y="44" class="d-title">Impulse response</text>
+      <text x="434" y="64" class="d-small">h[k]: what a click becomes</text>
+      <rect x="20" y="152" width="200" height="58" rx="6" class="d-box"/>
+      <text x="34" y="176" class="d-title">Poles and zeros</text>
+      <text x="34" y="196" class="d-small">4 points: where to design</text>
+      <rect x="420" y="152" width="200" height="58" rx="6" class="d-hl"/>
+      <text x="434" y="176" class="d-title">Frequency response</text>
+      <text x="434" y="196" class="d-small">|H(ω)|: what you hear</text>
+      <line x1="222" y1="49" x2="418" y2="49" class="d-line" marker-end="url(#ah)"/>
+      <text x="320" y="40" class="d-acc" text-anchor="middle">§2 unroll the recursion</text>
+      <line x1="520" y1="80" x2="520" y2="150" class="d-line" marker-end="url(#ah)"/>
+      <text x="510" y="112" class="d-acc" text-anchor="end">§3 Fourier</text>
+      <text x="510" y="127" class="d-acc" text-anchor="end">transform</text>
+      <line x1="120" y1="80" x2="120" y2="150" class="d-line" marker-end="url(#ah)"/>
+      <text x="130" y="112" class="d-acc">§4 roots of the top</text>
+      <text x="130" y="127" class="d-acc">and bottom of H</text>
+      <line x1="222" y1="181" x2="418" y2="181" class="d-line" marker-end="url(#ah)"/>
+      <text x="320" y="172" class="d-acc" text-anchor="middle">§4 distances on a circle</text>
+    </svg>
+    </div>
+    <p class="caption">Four complete descriptions of the same filter. Each arrow is a calculation that turns one into another; the sections below go through them in order. The whole subject is called the theory of linear time-invariant (LTI) systems.</p>
+  </div>
+</header>
+
+<!-- ============ 1 ============ -->
+<section id="causal">
+  <span class="tier">§1 · The per-sample loop</span>
+  <h2>The filter only looks backward</h2>
+  <p>Picture the filter as an operator that steps from one moment to the next, with one adjustment: it only uses the past. A live filter receives one new input sample, produces one output sample, and moves on. It can't read <code>x[n+1]</code>, because the guitar hasn't played it yet. Offline, on a recording, you can use future samples; live, waiting for them would be latency.</p>
+  <div class="figure">
+    <div class="scroll">
+    <svg class="diagram" viewBox="0 0 640 280" role="img" aria-label="Timeline of input and output samples. The output at the current moment is computed from the current and two previous inputs and the two previous outputs. Future samples are not available.">
+      <defs>
+        <marker id="ah1" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" class="d-head"/></marker>
+        <marker id="ah1fb" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" class="d-head-fb"/></marker>
+      </defs>
+      <g id="timeline"></g>
+    </svg>
+    </div>
+    <p class="caption">One step of the loop. The output <code>y[n]</code> is computed from the new input, the two previous inputs (dark arrows) and the two previous outputs (pink arrows, the feedback). Then every column slides one place left: this step's <code>y[n]</code> becomes the next step's <code>y[n−1]</code>. The dashed cells haven't happened yet.</p>
+  </div>
+  <p>In code it's five multiplies and four remembered numbers:</p>
+<pre class="eq"><span class="cm"># runs once per sample, 48,000 times a second</span>
+y  = b0*x + b1*x1 + b2*x2 - a1*y1 - a2*y2
+x2, x1 = x1, x      <span class="cm"># remember the last two inputs</span>
+y2, y1 = y1, y      <span class="cm"># remember the last two outputs</span>
+output(y)</pre>
+  <p>So the filter is a small state machine: <em>(new input, 4 remembered numbers) → (output, 4 updated numbers)</em>. The recursion feels circular because outputs feed back in, but every output depends only on things that already happened. The next section shows that you can always write it without recursion at all.</p>
+</section>
+
+<!-- ============ 2 ============ -->
+<section id="unroll">
+  <span class="tier">§2 · Coefficients → impulse response</span>
+  <h2>Unrolling the recursion</h2>
+  <p>Strip the biquad down to a single feedback term, <code>y[n] = x[n] + a·y[n−1]</code>. The same rule says what <code>y[n−1]</code> is, so substitute it in, then do the same for <code>y[n−2]</code>, and keep going:</p>
+  <div class="eq">y[n] = x[n] + a·(x[n−1] + a·y[n−2]) = x[n] + a·x[n−1] + a²·x[n−2] + a³·x[n−3] + …</div>
+  <p>The recursion is an infinitely long weighted sum of past inputs, with weights 1, a, a², a³, …. As long as |a| &lt; 1 the weights shrink, so inputs from long ago stop mattering. This weight sequence is the <strong>impulse response</strong>, <code>h[k]</code>. It's what comes out when the input is a single click, (1, 0, 0, 0, …), because then every term of the sum is zero except one.</p>
+
+  <div class="figure">
+    <h3>Try it: feed in one click</h3>
+    <label class="ctl" for="aSl"><span class="row">Feedback coefficient a <output id="aOut"></output></span>
+      <input id="aSl" type="range" min="-0.99" max="0.99" step="0.01" value="0.9">
+    </label>
+    <div class="play">
+      <button type="button" id="stepBtn" class="primary">Next sample</button>
+      <button type="button" id="allBtn">Show all 40</button>
+      <button type="button" id="resetBtn">Start over</button>
+    </div>
+    <p class="readout" id="stepOut"></p>
+    <canvas id="impCanvas" data-h="230" aria-label="Input click and the resulting output samples, which decay by a factor a each sample"></canvas>
+    <div class="eq" id="unrollEq"></div>
+    <div class="stats">
+      <div class="stat"><span class="k">Echo falls below 1% of its first value after</span><span class="v" id="hl"></span></div>
+    </div>
+    <p class="caption">The input is one click at sample 0 (grey). Each output (blue) is the previous output times a, so the output row is h[k] = a<sup>k</sup>: the weights of the written-out sum. With a positive the echo keeps its sign and fades; with a negative it flips sign every sample as it fades.</p>
+  </div>
+
+  <p>Every linear filter, recursive or not, is completely described by its impulse response, because any input is a sum of scaled, shifted clicks:</p>
+  <div class="eq">y[n] = Σ<sub>k</sub> h[k] · x[n−k]        (this is called convolution)</div>
+  <p>Feedback is a cheap way to get a long h. At a = 0.9, one multiply per sample gives an echo that's still above 1% of its first value 44 samples later. Writing that out without feedback would take 44 or more multiplies.</p>
+
+  <div class="figure">
+    <h3>Check it: the recursion equals the written-out sum</h3>
+    <label class="ctl" for="nSl"><span class="row">Terms of the sum kept, N <output id="nOut"></output></span>
+      <input id="nSl" type="range" min="1" max="80" step="1" value="5">
+    </label>
+    <canvas id="truncCanvas" data-h="270" aria-label="A test signal, the output of the recursive filter, and the output of the sum truncated to N terms"></canvas>
+    <div class="stats">
+      <div class="stat"><span class="k">Smallest weight kept, a<sup>N−1</sup></span><span class="v" id="wN"></span></div>
+      <div class="stat"><span class="k">Largest difference between the two outputs</span><span class="v acc2" id="errN"></span></div>
+    </div>
+    <p class="caption">Uses the a from the figure above. The test signal is a burst of noise, a click, then a 1.5 kHz tone. Blue is the recursive filter, one multiply per sample. Pink is the plain weighted sum <code>Σ a<sup>k</sup>·x[n−k]</code> cut off after N terms. Raise N and the pink line lands on the blue one: the difference shrinks roughly like a<sup>N</sup>, the first weight left out.</p>
+  </div>
+
+  <h3>The same filter, fed a steady tone</h3>
+  <p>A click shows how long the filter remembers. To see what it does to bass and treble, feed the same filter a steady tone instead and watch how big the output gets. A linear filter can't change a tone's frequency, only make it bigger or smaller and shift it slightly in time. So after a short start-up, a tone of one frequency comes out as the same tone at a new size. That ratio of sizes is the filter's <strong>gain</strong> at that frequency:</p>
+  <div class="eq">gain = output size ÷ input size        (size = amplitude, the peak height of the wave)</div>
+  <p>×1 means unchanged, ×2 twice as big, ×0.5 half as big. Audio plots usually give gain in <strong>decibels</strong>, dB = 20 × log₁₀(gain), a log scale that matches how loudness is heard:</p>
+  <div class="dbscale" role="table" aria-label="Gain multipliers and their decibel values">
+    <div role="row"><span role="cell">×10</span><span role="cell">+20 dB</span></div>
+    <div role="row"><span role="cell">×2</span><span role="cell">+6 dB</span></div>
+    <div role="row" class="zero"><span role="cell">×1</span><span role="cell">0 dB (same)</span></div>
+    <div role="row"><span role="cell">×0.5</span><span role="cell">−6 dB</span></div>
+    <div role="row"><span role="cell">×0.1</span><span role="cell">−20 dB</span></div>
+    <div role="row"><span role="cell">×0.01</span><span role="cell">−40 dB</span></div>
+  </div>
+
+  <div class="figure">
+    <h3>Try it: feed in a steady tone</h3>
+    <div class="controls">
+      <label class="ctl" for="aSl2"><span class="row">Feedback coefficient a (same filter) <output id="aOut2"></output></span>
+        <input id="aSl2" type="range" min="-0.99" max="0.99" step="0.01" value="0.9">
+      </label>
+      <label class="ctl" for="toneSl"><span class="row">Input tone <output id="toneOut"></output></span>
+        <input id="toneSl" type="range" min="0" max="1000" value="707">
+      </label>
+    </div>
+    <div class="play">
+      <button type="button" id="tone0">Slowest: 0 Hz (1, 1, 1, …)</button>
+      <button type="button" id="toneN">Fastest: 24 kHz (+1, −1, +1, …)</button>
+    </div>
+    <canvas id="toneCanvas" data-h="260" aria-label="An input tone of size 1 and the filter's output, which settles to a new size"></canvas>
+    <div class="stats">
+      <div class="stat"><span class="k">Input size</span><span class="v">1</span></div>
+      <div class="stat"><span class="k">Output settles at size</span><span class="v acc" id="toneAmp"></span></div>
+      <div class="stat"><span class="k">Gain at this frequency</span><span class="v acc" id="toneGain"></span></div>
+    </div>
+    <h4 class="plot-title">Repeat for every input frequency and plot the gain</h4>
+    <canvas id="opResp" data-h="190" aria-label="Gain of the one-pole filter at every frequency, with the current tone marked"></canvas>
+    <p class="caption">Top: the input tone, size 1, switched on at sample 0 (grey). Middle: the output (blue). The first few samples are start-up while the echo of the switch-on fades; then the output is the same tone at a new size, marked by the dashed lines. Bottom: that size, in dB, for every input frequency. The dark dot is the tone above; the left edge stands in for 0 Hz, which can't sit on a log axis.</p>
+    <p class="caption">The two buttons give answers you can check by hand. <strong>0 Hz</strong> never changes: feed in 1, 1, 1, … and the output settles at a value y that satisfies the loop's rule, y = 1 + a·y, so y = 1 ÷ (1 − a). <strong>24 kHz</strong> is the fastest wave a 48 kHz stream can hold: +1, −1, +1, …. The output settles to +Y, −Y, +Y, …, and the rule gives Y = 1 − a·Y, so Y = 1 ÷ (1 + a). With a positive, each output adds a same-sign share of the last one, which builds up slow signals: a bass boost. With a negative, it builds up signals that flip every sample: a treble boost.</p>
+  </div>
+</section>
+
+<!-- ============ 3 ============ -->
+<section id="fourier">
+  <span class="tier">§3 · Impulse response → frequency response</span>
+  <h2>A click's echo holds the whole frequency curve</h2>
+  <p>A click contains every frequency in equal amounts, so its echo is the filter's response to all frequencies at once. The Fourier transform separates them again. For each frequency ω it adds up the echo's samples, each turned back by its delay (the arrows from the last page):</p>
+  <div class="eq">H(ω) = Σ<sub>k</sub> h[k] · e<sup>−jωk</sup></div>
+  <p>For the one-pole filter, h[k] = a<sup>k</sup>, so this is a geometric series, 1 + a·e<sup>−jω</sup> + (a·e<sup>−jω</sup>)² + …, which sums to:</p>
+  <div class="eq">H(ω) = 1 ÷ (1 − a·e<sup>−jω</sup>)</div>
+  <p>At 0 Hz, e<sup>−jω</sup> = 1, giving 1 ÷ (1 − a). At 24 kHz it's −1, giving 1 ÷ (1 + a). Those are the two button results in the steady-tone figure. Doing the same sum for the full biquad gives the ratio from the last page:</p>
+  <div class="eq">H(ω) = (b0 + b1·e<sup>−jω</sup> + b2·e<sup>−2jω</sup>) ÷ (1 + a1·e<sup>−jω</sup> + a2·e<sup>−2jω</sup>)</div>
+  <p class="callout">This is the model you were after. Split any input into frequencies, X(ω). The filter multiplies each one by its own H(ω), so the output's frequency content is <strong>Y(ω) = H(ω) · X(ω)</strong>. A weighted sum over time (convolution) is the same thing as a multiplication over frequency. The coefficients set H, and H sets the output's frequency composition.</p>
+
+  <div class="figure">
+    <h3>Check it: three independent ways to get the curve</h3>
+    <label class="ctl" for="bqPreset"><span class="row">Filter</span>
+      <select id="bqPreset">
+        <option value="peak" selected>EQ band: +9 dB at 1 kHz</option>
+        <option value="notch">Notch at 1 kHz</option>
+        <option value="lowcut">Low-cut at 100 Hz</option>
+        <option value="reslp">Resonant high-cut at 2 kHz (Q = 8)</option>
+      </select>
+    </label>
+    <div class="eq" id="bqEq"></div>
+    <h4 class="plot-title">Impulse response: the first 5 ms after a click</h4>
+    <canvas id="bqImp" data-h="170" aria-label="Impulse response of the selected biquad"></canvas>
+    <h4 class="plot-title">Frequency response in dB, computed three ways</h4>
+    <div class="legend">
+      <span><i style="background:var(--accent)"></i>the ratio formula from the coefficients</span>
+      <span><i style="background:var(--accent-2)"></i>FFT of the impulse response above</span>
+      <span><i style="background:var(--ink)"></i>sine waves actually run through the loop</span>
+    </div>
+    <canvas id="bqResp" data-h="240" aria-label="Frequency response from the formula, from the FFT of the impulse response, and from test tones"></canvas>
+    <p class="caption">The blue line evaluates the formula. The pink dots take 16,384 samples of the impulse response and run an FFT. The dark dots feed 13 pure tones through the per-sample loop from §1 and measure how big each one comes out. Three unrelated calculations, one curve. Compare the panels, too: the narrow features (the notch, the Q = 8 resonance) come with an echo that rings for longer. A sharp feature in frequency means a long ring in time.</p>
+  </div>
+</section>
+
+<!-- ============ 4 ============ -->
+<section id="poles">
+  <span class="tier">§4 · Coefficients → poles and zeros → frequency response</span>
+  <h2>Poles and zeros: why the curve has its shape</h2>
+  <p>The formula gives the curve. Poles and zeros explain it, and they're how filters are designed. Write <code>z = e<sup>jω</sup></code>. The top of H is a quadratic, so it has two roots, called <strong>zeros</strong>. The bottom has two roots, called <strong>poles</strong>. With real coefficients, each pair is either two real numbers or a mirror-image pair above and below the horizontal axis. Factored:</p>
+  <div class="eq">H = (z − zero₁)(z − zero₂) ÷ ((z − pole₁)(z − pole₂))        with z = e<sup>jω</sup></div>
+  <p>Now <code>e<sup>jω</sup></code> is a point on the unit circle at angle ω: 0 Hz on the right, 12 kHz at the top, 24 kHz on the left. Each factor's size is the distance from that point to a zero or a pole. So, for this form of the filter:</p>
+  <div class="eq">gain at ω = (distance to zero₁ × distance to zero₂) ÷ (distance to pole₁ × distance to pole₂)</div>
+  <p>Walk the point around the circle. Passing near a zero, the top gets small, so that frequency is cut; a zero right on the circle silences it. Passing near a pole, the bottom gets small, so that frequency is boosted. EQ formulas are recipes for placing these two pairs.</p>
+
+  <div class="figure">
+    <h3>Try it: move the poles and zeros</h3>
+    <label class="ctl" for="zPreset"><span class="row">Start from</span>
+      <select id="zPreset">
+        <option value="notch" selected>Notch: zeros on the circle, poles just inside</option>
+        <option value="peak">Peak: zeros inside, poles closer to the circle</option>
+        <option value="reson">Pure resonance: zeros at the centre</option>
+        <option value="lowcut">Low-cut: zeros at 0 Hz</option>
+        <option value="unstable">Unstable: poles outside the circle</option>
+        <option value="custom">Custom (any slider moved)</option>
+      </select>
+    </label>
+    <div class="controls">
+      <label class="ctl" for="zfSl"><span class="row">Zero angle (frequency) <output id="zfOut"></output></span><input id="zfSl" type="range" min="0" max="1000" value="552"></label>
+      <label class="ctl" for="zrSl"><span class="row">Zero distance from centre <output id="zrOut"></output></span><input id="zrSl" type="range" min="0" max="1.2" step="0.005" value="1"></label>
+      <label class="ctl" for="pfSl"><span class="row">Pole angle (frequency) <output id="pfOut"></output></span><input id="pfSl" type="range" min="0" max="1000" value="552"></label>
+      <label class="ctl" for="prSl"><span class="row">Pole distance from centre <output id="prOut"></output></span><input id="prSl" type="range" min="0" max="1.05" step="0.001" value="0.95"></label>
+    </div>
+    <label class="ctl" for="probeSl"><span class="row">Probe frequency (the dark point on the circle) <output id="probeOut"></output></span>
+      <input id="probeSl" type="range" min="0" max="1000" value="707">
+    </label>
+    <div class="eq" id="zEq"></div>
+    <div class="pair">
+      <div><canvas id="zPlane" data-h="300" aria-label="Unit circle with zeros as circles and poles as crosses, and lines from the probe frequency to each"></canvas></div>
+      <div><canvas id="zImp" data-h="300" aria-label="Impulse response of the filter defined by these poles and zeros"></canvas></div>
+    </div>
+    <div class="stats">
+      <div class="stat"><span class="k">Distances to zeros, multiplied</span><span class="v acc" id="dz"></span></div>
+      <div class="stat"><span class="k">Distances to poles, multiplied</span><span class="v acc2" id="dp"></span></div>
+      <div class="stat"><span class="k">Gain = zeros ÷ poles</span><span class="v" id="dg"></span></div>
+    </div>
+    <p class="warn" id="zWarn" hidden>A pole is on or outside the circle, so each echo is at least as big as the last and the output never dies away. The filter is unstable; the frequency curve below no longer describes anything you'd hear.</p>
+    <h4 class="plot-title">The gain at every probe position, in dB</h4>
+    <canvas id="zResp" data-h="210" aria-label="Frequency response of the filter defined by these poles and zeros"></canvas>
+    <p class="caption">The presets sit at 4 kHz, 30° round the circle, so they're easy to see. Angle is proportional to frequency, so everything in a guitar's main range (below about 5 kHz) crowds into the right-hand third of the upper half. Zeros are circles, poles are crosses; each has a mirror image below the axis. Blue lines run from the probe point to the zeros, pink dashed lines to the poles. The gain is the product of the blue lengths divided by the product of the pink ones. Right: the impulse response of the same filter. Drag a pole toward the circle and the peak sharpens while the echo rings longer; push it past the circle and the echo grows.</p>
+  </div>
+  <p>The pole's distance from the centre is also the echo's decay rate: a pole at radius r makes the impulse response shrink by a factor of r every sample. The one-pole filter in §2 is a single pole at <code>z = a</code> on the horizontal axis, which is why its echo was a<sup>k</sup>. Closer to the circle means a longer ring and a sharper peak. On or outside the circle, the echo never dies away: the filter is <strong>unstable</strong>. Every filter in the box needs its poles inside the circle, and the standard EQ formulas guarantee it.</p>
+</section>
+
+<!-- ============ 5 ============ -->
+<section id="ear">
+  <span class="tier">§5 · Why the frequency view is the useful one</span>
+  <h2>Your ear does this analysis too</h2>
+  <div class="notes">
+    <p>The inner ear performs a version of this analysis mechanically. The cochlea is a coiled strip that resonates to high frequencies at one end and low frequencies at the other, so what reaches the brain is roughly "how much energy at each frequency, moment to moment". That's why a filter's frequency curve predicts what it will sound like far better than its coefficients do.</p>
+    <p>For steady sounds the ear is mostly insensitive to phase, the angle of H. That's why EQ plots show only its size. The exception is ringing: a very sharp resonance has a long echo, and you can hear it as a tone that hangs on after each note.</p>
+  </div>
+</section>
+
+<!-- ============ 6 ============ -->
+<section id="summary">
+  <h2>The four views side by side</h2>
+  <div class="figure">
+    <div class="scroll">
+    <table class="ledger">
+      <thead><tr><th>View</th><th>What it is</th><th>How you get it</th><th>What it's good for</th></tr></thead>
+      <tbody>
+        <tr><td class="name">Coefficients</td><td>Five numbers: b0, b1, b2, a1, a2</td><td>A design formula (e.g. the EQ cookbook)</td><td>Running the filter: 5 multiplies per sample</td></tr>
+        <tr><td class="name">Impulse response</td><td>h[k], what one click turns into</td><td>Unroll the recursion, or just feed in a click</td><td>Seeing ringing and how long the filter remembers</td></tr>
+        <tr><td class="name">Frequency response</td><td>H(ω), one multiplier per frequency</td><td>Fourier transform of h, or the ratio formula</td><td>Predicting the sound; drawing EQ curves</td></tr>
+        <tr><td class="name">Poles and zeros</td><td>Four points in the plane</td><td>Roots of the top and bottom of H</td><td>Designing (zeros cut, poles boost) and checking stability</td></tr>
+      </tbody>
+    </table>
+    </div>
+  </div>
+  <p>In the box, EQ bands are designed in the last view and run in the first. The body-IR correction from the measurement rig goes the other way: the mic recording gives you an impulse response directly, thousands of samples long with no recursion, and the box runs it as a convolution (with the FFT trick from the <a href="effects-compute-cost.html">compute explainer</a> to keep it cheap).</p>
+</section>
+
+</main>
+
+<script>
+(function () {
+  "use strict";
+  var FS = 48000, FMIN = 20, FMAX = 24000;
+  var MONO = '11px "IBM Plex Mono", ui-monospace, Menlo, monospace';
+  var SANS = '12px "Bricolage Grotesque", "Helvetica Neue", Arial, sans-serif';
+
+  function $(id) { return document.getElementById(id); }
+  function cssVar(n) { return getComputedStyle(document.documentElement).getPropertyValue(n).trim(); }
+  function colors() {
+    return { ink: cssVar("--ink"), muted: cssVar("--muted"), line: cssVar("--line"), acc: cssVar("--accent"),
+      soft: cssVar("--accent-soft"), acc2: cssVar("--accent-2"), soft2: cssVar("--accent-2-soft"),
+      surface: cssVar("--surface"), bg: cssVar("--bg"), warn: cssVar("--warn") };
+  }
+  function prep(cv) {
+    var dpr = window.devicePixelRatio || 1, w = cv.clientWidth, h = +cv.dataset.h;
+    cv.style.height = h + "px";
+    cv.width = Math.round(w * dpr); cv.height = Math.round(h * dpr);
+    var ctx = cv.getContext("2d");
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, w, h);
+    return { ctx: ctx, w: w, h: h };
+  }
+  function num(v, d) {
+    d = d === undefined ? 2 : d;
+    if (Math.abs(v) < 0.5 * Math.pow(10, -d)) v = 0;
+    var s = v.toFixed(d);
+    return s.charAt(0) === "-" ? "−" + s.slice(1) : s;
+  }
+  function fmtHz(f) { return f < 1000 ? Math.round(f) + " Hz" : (f / 1000).toFixed(f < 10000 ? 2 : 1) + " kHz"; }
+  function db(g) { return 20 * Math.log10(Math.max(g, 1e-12)); }
+  function dbStr(g) { if (g < 1e-5) return "below −100 dB"; var d = db(g); return (d >= 0.05 ? "+" : "") + num(d, 1) + " dB"; }
+  function sliderToHz(v) { return FMIN * Math.pow(FMAX / FMIN, v / 1000); }
+  function logX(f, x0, x1) { return x0 + Math.log(f / FMIN) / Math.log(FMAX / FMIN) * (x1 - x0); }
+  function dot(ctx, x, y, r, fill) { ctx.beginPath(); ctx.arc(x, y, r, 0, 2 * Math.PI); ctx.fillStyle = fill; ctx.fill(); }
+  function ring(ctx, x, y, r, col, lw) { ctx.beginPath(); ctx.arc(x, y, r, 0, 2 * Math.PI); ctx.strokeStyle = col; ctx.lineWidth = lw || 1.5; ctx.stroke(); }
+  function seg(ctx, x0, y0, x1, y1, col, lw) { ctx.strokeStyle = col; ctx.lineWidth = lw || 1; ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); ctx.stroke(); }
+  function label(ctx, text, x, y, col, font, align) {
+    ctx.font = font || SANS; ctx.fillStyle = col; ctx.textAlign = align || "left"; ctx.fillText(text, x, y); ctx.textAlign = "left";
+  }
+  function freqTicks(ctx, x0, x1, yTop, yBot, c) {
+    [[20, "20"], [100, "100"], [1000, "1k"], [10000, "10k"], [24000, "24k"]].forEach(function (t) {
+      var x = logX(t[0], x0, x1);
+      seg(ctx, x, yTop, x, yBot, c.line, 1);
+      label(ctx, t[1], x, yBot + 14, c.muted, MONO, t[0] === 24000 ? "right" : (t[0] === 20 ? "left" : "center"));
+    });
+    label(ctx, "frequency in Hz (log scale): bass on the left, treble on the right", (x0 + x1) / 2, yBot + 31, c.muted, SANS, "center");
+  }
+  function yTitle(ctx, text, y0, y1, c) {
+    ctx.save(); ctx.translate(11, (y0 + y1) / 2); ctx.rotate(-Math.PI / 2);
+    label(ctx, text, 0, 0, c.muted, SANS, "center"); ctx.restore();
+  }
+  // dB axis with a range chosen from the data; returns the y mapping
+  function dbAxis(ctx, x0, x1, y0, y1, lo, hi, c) {
+    var step = hi - lo > 40 ? 12 : 6;
+    function DY(d) { return y1 - (Math.max(lo, Math.min(hi, d)) - lo) / (hi - lo) * (y1 - y0); }
+    for (var d = Math.ceil(lo / step) * step; d <= hi + 1e-9; d += step) {
+      seg(ctx, x0, DY(d), x1, DY(d), d === 0 ? c.muted : c.line, 1);
+      label(ctx, (d > 0 ? "+" : "") + num(d, 0), x0 - 6, DY(d) + 4, c.muted, MONO, "right");
+    }
+    yTitle(ctx, "gain (dB)", y0, y1, c);
+    return DY;
+  }
+  function rangeFor(dbs, span) {
+    var mx = -Infinity; dbs.forEach(function (v) { if (isFinite(v)) mx = Math.max(mx, v); });
+    var hi = Math.ceil((mx + 3) / 6) * 6;
+    return [hi - span, hi];
+  }
+  function logFreqs(n) { var out = []; for (var i = 0; i <= n; i++) out.push(FMIN * Math.pow(FMAX / FMIN, i / n)); return out; }
+
+  // complex helpers for H(ω) = B(e^{-jω}) / A(e^{-jω})
+  function polyMag(co, om) {
+    var re = 0, im = 0;
+    for (var k = 0; k < co.length; k++) { re += co[k] * Math.cos(k * om); im -= co[k] * Math.sin(k * om); }
+    return Math.hypot(re, im);
+  }
+  function Hmag(F, om) { return polyMag(F.b, om) / polyMag(F.a, om); }
+  function impulse(F, n) {
+    var h = new Float64Array(n), x1 = 0, x2 = 0, y1 = 0, y2 = 0;
+    for (var i = 0; i < n; i++) {
+      var x = i === 0 ? 1 : 0;
+      var y = F.b[0] * x + F.b[1] * x1 + F.b[2] * x2 - F.a[1] * y1 - F.a[2] * y2;
+      x2 = x1; x1 = x; y2 = y1; y1 = y; h[i] = y;
+    }
+    return h;
+  }
+  function coefStr(F) {
+    var t = [[F.b[0], "x[n]"], [F.b[1], "x[n−1]"], [F.b[2], "x[n−2]"], [-F.a[1], "y[n−1]"], [-F.a[2], "y[n−2]"]], s = "y[n] =", first = true;
+    t.forEach(function (q) {
+      if (Math.abs(q[0]) < 1e-9) return;
+      var v = Math.abs(q[0]).toFixed(4);
+      s += first ? " " + (q[0] < 0 ? "−" : "") + v + "·" + q[1] : (q[0] < 0 ? " − " : " + ") + v + "·" + q[1];
+      first = false;
+    });
+    return s;
+  }
+
+  /* ---------- §1 timeline diagram (static, built once) ---------- */
+  function buildTimeline() {
+    var g = $("timeline"), s = "", cols = ["n−4", "n−3", "n−2", "n−1", "n", "n+1", "n+2"];
+    var cw = 60, gap = 12, x0 = 110, yx = 46, yy = 166, ch = 38;
+    function cx(i) { return x0 + i * (cw + gap) + cw / 2; }
+    s += '<text x="14" y="' + (yx + 24) + '" class="d-text">input x</text>';
+    s += '<text x="14" y="' + (yy + 24) + '" class="d-text">output y</text>';
+    cols.forEach(function (lab, i) {
+      var x = x0 + i * (cw + gap), fut = i > 4;
+      s += '<text x="' + cx(i) + '" y="' + (yx - 10) + '" class="d-small" text-anchor="middle">' + lab + '</text>';
+      s += '<rect x="' + x + '" y="' + yx + '" width="' + cw + '" height="' + ch + '" rx="4" class="' + (fut ? "d-future" : (i === 4 ? "d-hl" : "d-box")) + '"/>';
+      s += '<rect x="' + x + '" y="' + yy + '" width="' + cw + '" height="' + ch + '" rx="4" class="' + (fut ? "d-future" : (i === 4 ? "d-out" : "d-box")) + '"/>';
+      if (!fut) {
+        s += '<text x="' + cx(i) + '" y="' + (yx + 24) + '" class="d-text" text-anchor="middle">x[' + lab + ']</text>';
+        s += '<text x="' + cx(i) + '" y="' + (yy + 24) + '" class="' + (i === 4 ? "d-inv" : "d-text") + '" text-anchor="middle">' + (i === 4 ? "y[n]" : "y[" + lab + "]") + '</text>';
+      }
+    });
+    var fx = x0 + 5 * (cw + gap);
+    s += '<text x="' + (fx + cw + gap / 2) + '" y="' + (yx + ch + 22) + '" class="d-small" text-anchor="middle">not played yet</text>';
+    // feedforward arrows: x[n-2], x[n-1], x[n] -> y[n]
+    [[2, "b2"], [3, "b1"], [4, "b0"]].forEach(function (q) {
+      var xa = cx(q[0]), xb = cx(4) - (4 - q[0]) * 10;
+      s += '<line x1="' + xa + '" y1="' + (yx + ch) + '" x2="' + xb + '" y2="' + (yy - 3) + '" class="d-line" marker-end="url(#ah1)"/>';
+      // label sits just below the input cell, to the left of its arrow (right of the vertical b0 arrow)
+      var ly = yx + ch + 20, lx = xa + (xb - xa) * (ly - yx - ch) / (yy - 3 - yx - ch);
+      s += '<text x="' + (q[0] === 4 ? lx + 7 : lx - 6) + '" y="' + ly + '" class="d-text"' + (q[0] === 4 ? '' : ' text-anchor="end"') + '>' + q[1] + '</text>';
+    });
+    // feedback arrows: y[n-1], y[n-2] -> y[n], curving underneath
+    [[3, "−a1", 26], [2, "−a2", 50]].forEach(function (q) {
+      var xa = cx(q[0]), xb = cx(4) - 8 + (3 - q[0]) * 16, yb = yy + ch, dep = q[2];
+      s += '<path d="M' + xa + ' ' + yb + ' C ' + xa + ' ' + (yb + dep) + ', ' + xb + ' ' + (yb + dep) + ', ' + xb + ' ' + (yb + 3) + '" class="d-fb" marker-end="url(#ah1fb)"/>';
+      s += '<text x="' + ((xa + xb) / 2) + '" y="' + (yb + dep * 0.75 + 12) + '" class="d-acc2" text-anchor="middle">' + q[1] + '</text>';
+    });
+    g.innerHTML = s;
+  }
+
+  /* ---------- §2 one-pole: click → echo ---------- */
+  var OP = { K: 5, N: 40 };
+  function aVal() { return +$("aSl").value; }
+  function drawOnePole() {
+    var a = aVal(), c = colors();
+    $("aOut").textContent = num(a);
+    $("hl").textContent = Math.abs(a) < 0.01 ? "1 sample" : Math.ceil(Math.log(0.01) / Math.log(Math.abs(a))) + " samples";
+    var terms = ["x[n]"];
+    for (var k = 1; k <= 3; k++) terms.push(num(Math.pow(a, k)) + "·x[n−" + k + "]");
+    $("unrollEq").textContent = "y[n] = " + terms.join(" + ").replace(/\+ −/g, "− ") + " + …   (weights a⁰, a¹, a², a³ …)";
+
+    // step text
+    var k = OP.K - 1, hk = Math.pow(a, k);
+    $("stepOut").textContent = k === 0
+      ? "y[0] = x[0] + a·y[−1] = 1 + " + num(a) + " × 0 = 1"
+      : "y[" + k + "] = x[" + k + "] + a·y[" + (k - 1) + "] = 0 + " + num(a) + " × " + num(Math.pow(a, k - 1), 3) + " = " + num(hk, 3);
+    if (a === 0) $("stepOut").textContent += "   (a = 0: no feedback, so the output is just the input)";
+
+    var cv = $("impCanvas");
+    if (cv.clientWidth) {
+      var p = prep(cv), ctx = p.ctx, w = p.w, h = p.h, x0 = 70, x1 = w - 10;
+      var dx = (x1 - x0) / OP.N;
+      function X(i) { return x0 + (i + 0.5) * dx; }
+      // input row
+      var iy0 = 30, iy1 = 70;
+      seg(ctx, x0, iy1, x1, iy1, c.line, 1);
+      label(ctx, "input x", 0, iy1 - 4, c.muted);
+      for (var i = 0; i < OP.N; i++) {
+        var v = i === 0 ? 1 : 0;
+        seg(ctx, X(i), iy1, X(i), iy1 - v * (iy1 - iy0), c.muted, 1.5);
+        dot(ctx, X(i), iy1 - v * (iy1 - iy0), 2.2, c.muted);
+      }
+      label(ctx, "one click", X(0) + 8, iy0 + 6, c.muted, MONO);
+      // output row
+      var oy0 = 96, oy1 = h - 18, om = (oy0 + oy1) / 2, oa = (oy1 - oy0) / 2;
+      seg(ctx, x0, om, x1, om, c.line, 1);
+      label(ctx, "output y", 0, om + 4, c.muted);
+      label(ctx, "+1", x0 - 6, oy0 + 4, c.muted, MONO, "right");
+      label(ctx, "−1", x0 - 6, oy1 + 4, c.muted, MONO, "right");
+      for (i = 0; i < OP.N; i++) {
+        var hv = Math.pow(a, i), Y = om - hv * oa, shown = i < OP.K;
+        if (shown) {
+          seg(ctx, X(i), om, X(i), Y, c.acc, 2);
+          dot(ctx, X(i), Y, i === OP.K - 1 ? 4.5 : 2.6, c.acc);
+        } else {
+          ctx.save(); ctx.setLineDash([2, 3]); seg(ctx, X(i), om, X(i), Y, c.line, 1); ctx.restore();
+        }
+      }
+      if (OP.K >= 2 && OP.K <= OP.N) {
+        // feedback hint: previous output × a → current output
+        var xa = X(OP.K - 2), xb = X(OP.K - 1), ya = om - Math.pow(a, OP.K - 2) * oa, yb = om - Math.pow(a, OP.K - 1) * oa;
+        ctx.save(); ctx.strokeStyle = c.acc2; ctx.lineWidth = 1.5;
+        // keep the arc and its label inside the output row, clear of the input row above
+        var top = Math.max(Math.min(ya, yb) - 26, oy0 - 12);
+        ctx.beginPath(); ctx.moveTo(xa, ya - 6); ctx.quadraticCurveTo((xa + xb) / 2, top, xb, yb - 8); ctx.stroke(); ctx.restore();
+        label(ctx, "× a", xb + 8, Math.max(Math.min(ya, yb) - 8, oy0 + 4), c.acc2, MONO);
+      }
+    }
+  }
+
+  /* ---------- §2 the same filter, fed a steady tone ---------- */
+  function toneHz(v) { return v <= 0 ? 0 : FMIN * Math.pow(FMAX / FMIN, (v - 1) / 999); }
+  function drawTone() {
+    var a = aVal(), c = colors(), f = toneHz(+$("toneSl").value), om = 2 * Math.PI * f / FS;
+    $("aOut2").textContent = num(a);
+    $("toneOut").textContent = f === 0 ? "0 Hz" : fmtHz(f);
+    var G = 1 / Math.sqrt(1 - 2 * a * Math.cos(om) + a * a);
+    $("toneAmp").textContent = num(G, 2);
+    $("toneGain").textContent = "×" + num(G, 2) + " (" + dbStr(G) + ")";
+    var N = 60, x = [], y = [], prev = 0, i, ymax = 0;
+    for (i = 0; i < N; i++) { x.push(Math.cos(om * i)); prev = x[i] + a * prev; y.push(prev); ymax = Math.max(ymax, Math.abs(prev)); }
+
+    var cv = $("toneCanvas");
+    if (cv.clientWidth) {
+      var p = prep(cv), ctx = p.ctx, w = p.w, h = p.h, x0 = 70, x1 = w - 10, dx = (x1 - x0) / N;
+      function X(j) { return x0 + (j + 0.5) * dx; }
+      function row(vals, top, bot, scale, col, name) {
+        var mid = (top + bot) / 2, amp = (bot - top) / 2 / scale;
+        seg(ctx, x0, mid, x1, mid, c.line, 1);
+        label(ctx, name, 0, mid + 4, c.muted);
+        ctx.save(); ctx.globalAlpha = 0.45; ctx.strokeStyle = col; ctx.lineWidth = 1; ctx.beginPath();
+        vals.forEach(function (v, j) { if (j) ctx.lineTo(X(j), mid - v * amp); else ctx.moveTo(X(j), mid - v * amp); });
+        ctx.stroke(); ctx.restore();
+        vals.forEach(function (v, j) { dot(ctx, X(j), mid - v * amp, 2.6, col); });
+        return function (v) { return mid - v * amp; };
+      }
+      var IY = row(x, 12, 92, 1.1, c.muted, "input x");
+      label(ctx, "+1", x0 - 6, IY(1) + 4, c.muted, MONO, "right");
+      label(ctx, "−1", x0 - 6, IY(-1) + 4, c.muted, MONO, "right");
+      var S = Math.max(G, ymax, 1) * 1.1;
+      var OY = row(y, 112, h - 8, S, c.acc, "output y");
+      ctx.save(); ctx.setLineDash([5, 4]);
+      seg(ctx, x0, OY(G), x1, OY(G), c.acc2, 1.5);
+      seg(ctx, x0, OY(-G), x1, OY(-G), c.acc2, 1.5);
+      ctx.restore();
+      label(ctx, "+" + num(G, 2), x0 - 6, OY(G) + 4, c.acc2, MONO, "right");
+      label(ctx, "−" + num(G, 2), x0 - 6, OY(-G) + 4, c.acc2, MONO, "right");
+      label(ctx, "settles to this size", x1, OY(G) - 6, c.acc2, MONO, "right");
+    }
+
+    var rv = $("opResp");
+    if (rv.clientWidth) {
+      var rp = prep(rv), rc = rp.ctx, rx0 = 56, rx1 = rp.w - 12, ry0 = 10, ry1 = rp.h - 40;
+      var fs = logFreqs(400), F = { b: [1, 0, 0], a: [1, -a, 0] };
+      var dbs = fs.map(function (ff) { return db(Hmag(F, 2 * Math.PI * ff / FS)); });
+      var r = rangeFor(dbs, 48);
+      freqTicks(rc, rx0, rx1, ry0, ry1, c);
+      var DY = dbAxis(rc, rx0, rx1, ry0, ry1, r[0], r[1], c);
+      rc.strokeStyle = c.acc; rc.lineWidth = 2; rc.beginPath();
+      fs.forEach(function (ff, j) { var xx = logX(ff, rx0, rx1), yy = DY(dbs[j]); if (j) rc.lineTo(xx, yy); else rc.moveTo(xx, yy); });
+      rc.stroke();
+      dot(rc, logX(Math.max(f, FMIN), rx0, rx1), DY(db(G)), 5.5, c.ink);
+    }
+  }
+
+  /* ---------- §2 check: recursion vs truncated sum ---------- */
+  var TEST = (function () {
+    var n = 300, x = new Float64Array(n), seed = 12345;
+    function rnd() { seed = (seed * 1103515245 + 12345) % 2147483648; return seed / 2147483648 - 0.5; }
+    for (var i = 10; i < 90; i++) x[i] = rnd();
+    x[110] = 1;
+    for (i = 140; i < n; i++) x[i] = 0.5 * Math.sin(2 * Math.PI * 1500 * i / FS);
+    return x;
+  })();
+  function drawTrunc() {
+    var a = aVal(), N = +$("nSl").value, c = colors(), x = TEST, L = x.length;
+    $("nOut").textContent = N;
+    var yr = new Float64Array(L), yt = new Float64Array(L), prev = 0, i, k;
+    for (i = 0; i < L; i++) { prev = x[i] + a * prev; yr[i] = prev; }
+    for (i = 0; i < L; i++) { var s = 0, w = 1; for (k = 0; k < N && k <= i; k++) { s += w * x[i - k]; w *= a; } yt[i] = s; }
+    var err = 0, ymax = 0;
+    for (i = 0; i < L; i++) { err = Math.max(err, Math.abs(yr[i] - yt[i])); ymax = Math.max(ymax, Math.abs(yr[i]), Math.abs(yt[i])); }
+    $("wN").textContent = num(Math.pow(a, N - 1), 4);
+    $("errN").textContent = num(err, 4) + " (" + (100 * err / ymax).toFixed(err / ymax < 0.01 ? 2 : 1) + "% of peak)";
+    var cv = $("truncCanvas"); if (!cv.clientWidth) return;
+    var p = prep(cv), ctx = p.ctx, w = p.w, h = p.h, x0 = 8, x1 = w - 8;
+    function X(j) { return x0 + j / (L - 1) * (x1 - x0); }
+    var r1 = [20, 90], r2 = [120, h - 8];
+    function row(arr, r, scale, col, lw, alpha, dash) {
+      var mid = (r[0] + r[1]) / 2, amp = (r[1] - r[0]) / 2 / scale;
+      ctx.save(); ctx.globalAlpha = alpha; ctx.strokeStyle = col; ctx.lineWidth = lw; if (dash) ctx.setLineDash(dash);
+      ctx.beginPath(); for (var j = 0; j < L; j++) { var yy = mid - arr[j] * amp; if (j) ctx.lineTo(X(j), yy); else ctx.moveTo(X(j), yy); }
+      ctx.stroke(); ctx.restore();
+    }
+    var xmax = 0; for (i = 0; i < L; i++) xmax = Math.max(xmax, Math.abs(x[i]));
+    seg(ctx, x0, (r1[0] + r1[1]) / 2, x1, (r1[0] + r1[1]) / 2, c.line, 1);
+    seg(ctx, x0, (r2[0] + r2[1]) / 2, x1, (r2[0] + r2[1]) / 2, c.line, 1);
+    row(x, r1, xmax * 1.05, c.muted, 1, 1);
+    row(yr, r2, ymax * 1.05, c.acc, 3, 0.55);
+    row(yt, r2, ymax * 1.05, c.acc2, 1.5, 1, [5, 3]);
+    label(ctx, "input: noise burst, click, 1.5 kHz tone", x0, 13, c.muted);
+    label(ctx, "output: recursion (blue) and the sum cut at N terms (pink)", x0, r2[0] - 8, c.muted);
+  }
+
+  /* ---------- §3 biquads computed three ways ---------- */
+  function rbj(type, f0, Q, gainDb) {
+    var w0 = 2 * Math.PI * f0 / FS, cs = Math.cos(w0), al = Math.sin(w0) / (2 * Q), b, a;
+    a = [1 + al, -2 * cs, 1 - al];
+    if (type === "notch") b = [1, -2 * cs, 1];
+    else if (type === "hp") b = [(1 + cs) / 2, -(1 + cs), (1 + cs) / 2];
+    else if (type === "lp") b = [(1 - cs) / 2, 1 - cs, (1 - cs) / 2];
+    else { var A = Math.pow(10, gainDb / 40); b = [1 + al * A, -2 * cs, 1 - al * A]; a = [1 + al / A, -2 * cs, 1 - al / A]; }
+    return { b: b.map(function (v) { return v / a[0]; }), a: a.map(function (v) { return v / a[0]; }) };
+  }
+  var BQ = {
+    peak: rbj("peak", 1000, 2, 9),
+    notch: rbj("notch", 1000, 2),
+    lowcut: rbj("hp", 100, 0.7071),
+    reslp: rbj("lp", 2000, 8)
+  };
+  var TONES = [50, 100, 200, 400, 700, 1000, 1400, 2000, 3000, 5000, 8000, 12000, 16000];
+  var bqCache = {};
+  function fftMag(h) {
+    var n = h.length, re = Float64Array.from(h), im = new Float64Array(n), i, j, k, len, t;
+    for (i = 1, j = 0; i < n; i++) {
+      var bit = n >> 1; for (; j & bit; bit >>= 1) j ^= bit; j ^= bit;
+      if (i < j) { t = re[i]; re[i] = re[j]; re[j] = t; t = im[i]; im[i] = im[j]; im[j] = t; }
+    }
+    for (len = 2; len <= n; len <<= 1) {
+      var ang = -2 * Math.PI / len, half = len >> 1;
+      for (k = 0; k < half; k++) {
+        var cr = Math.cos(ang * k), ci = Math.sin(ang * k);
+        for (i = k; i < n; i += len) {
+          var b = i + half, tr = re[b] * cr - im[b] * ci, ti = re[b] * ci + im[b] * cr;
+          re[b] = re[i] - tr; im[b] = im[i] - ti; re[i] += tr; im[i] += ti;
+        }
+      }
+    }
+    var m = new Float64Array(n / 2 + 1); for (i = 0; i <= n / 2; i++) m[i] = Math.hypot(re[i], im[i]);
+    return m;
+  }
+  function toneGain(F, f) {
+    var om = 2 * Math.PI * f / FS, x1 = 0, x2 = 0, y1 = 0, y2 = 0, peak = 0, N = 12000;
+    for (var n = 0; n < N; n++) {
+      var x = Math.sin(om * n), y = F.b[0] * x + F.b[1] * x1 + F.b[2] * x2 - F.a[1] * y1 - F.a[2] * y2;
+      x2 = x1; x1 = x; y2 = y1; y1 = y;
+      if (n >= N - 4800) peak = Math.max(peak, Math.abs(y));
+    }
+    return peak;
+  }
+  function bqData(key) {
+    if (bqCache[key]) return bqCache[key];
+    var F = BQ[key], NF = 16384, h = impulse(F, NF), M = fftMag(h), df = FS / NF;
+    var fftPts = logFreqs(70).map(function (f) { var k = Math.max(1, Math.round(f / df)); return [k * df, M[Math.min(k, NF / 2)]]; });
+    var tonePts = TONES.map(function (f) { return [f, toneGain(F, f)]; });
+    return (bqCache[key] = { F: F, h: h, fftPts: fftPts, tonePts: tonePts });
+  }
+  function drawBQ() {
+    var key = $("bqPreset").value, D = bqData(key), F = D.F, c = colors();
+    $("bqEq").textContent = coefStr(F);
+    var cv = $("bqImp");
+    if (cv.clientWidth) {
+      var p = prep(cv), ctx = p.ctx, w = p.w, h = p.h, x0 = 44, x1 = w - 10, y0 = 10, y1 = h - 22, NS = 240;
+      var tail = 0; for (var i = 1; i < NS; i++) tail = Math.max(tail, Math.abs(D.h[i]));
+      var clip = Math.abs(D.h[0]) > 1.6 * tail, scale = (clip ? tail : Math.max(tail, Math.abs(D.h[0]))) * 1.1;
+      var mid = (y0 + y1) / 2, amp = (y1 - y0) / 2;
+      seg(ctx, x0, mid, x1, mid, c.line, 1);
+      label(ctx, "+" + num(scale, 3), x0 - 4, y0 + 8, c.muted, MONO, "right");
+      label(ctx, "0", x0 - 4, mid + 4, c.muted, MONO, "right");
+      for (i = 0; i < NS; i++) {
+        var X = x0 + (i + 0.5) / NS * (x1 - x0), v = Math.max(-1, Math.min(1, D.h[i] / scale));
+        seg(ctx, X, mid, X, mid - v * amp, c.acc, 1.2);
+      }
+      if (clip) label(ctx, "← h[0] = " + num(D.h[0], 3) + ", off the scale", x0 + 10, y0 + 10, c.acc, MONO);
+      [0, 1, 2, 3, 4, 5].forEach(function (ms) {
+        var X = x0 + ms * 48 / NS * (x1 - x0);
+        label(ctx, ms + " ms", X, h - 6, c.muted, MONO, ms === 0 ? "left" : (ms === 5 ? "right" : "center"));
+      });
+    }
+    var rv = $("bqResp");
+    if (rv.clientWidth) {
+      var rp = prep(rv), rc = rp.ctx, rx0 = 56, rx1 = rp.w - 12, ry0 = 14, ry1 = rp.h - 40;
+      var fs = logFreqs(500), dbs = fs.map(function (f) { return db(Hmag(F, 2 * Math.PI * f / FS)); });
+      var r = rangeFor(dbs, 54);
+      freqTicks(rc, rx0, rx1, ry0, ry1, c);
+      var DY = dbAxis(rc, rx0, rx1, ry0, ry1, r[0], r[1], c);
+      rc.save(); rc.beginPath(); rc.rect(rx0, ry0 - 4, rx1 - rx0, ry1 - ry0 + 8); rc.clip();
+      rc.strokeStyle = c.acc; rc.lineWidth = 2.5; rc.beginPath();
+      fs.forEach(function (f, j) { var xx = logX(f, rx0, rx1), yy = DY(dbs[j]); if (j) rc.lineTo(xx, yy); else rc.moveTo(xx, yy); });
+      rc.stroke(); rc.restore();
+      D.fftPts.forEach(function (q) { if (q[0] >= FMIN && q[0] <= FMAX) dot(rc, logX(q[0], rx0, rx1), DY(db(q[1])), 2.6, c.acc2); });
+      D.tonePts.forEach(function (q) { ring(rc, logX(q[0], rx0, rx1), DY(db(q[1])), 5, c.ink, 1.8); });
+    }
+  }
+
+  /* ---------- §4 poles and zeros ---------- */
+  var ZP = {
+    notch: [4000, 1, 4000, 0.95],
+    peak: [4000, 0.9, 4000, 0.97],
+    reson: [4000, 0, 4000, 0.98],
+    lowcut: [20, 1, 70, 0.99],
+    unstable: [4000, 1, 4000, 1.01]
+  };
+  function hzToSlider(f) { return 1000 * Math.log(f / FMIN) / Math.log(FMAX / FMIN); }
+  function applyZPreset() {
+    var p = ZP[$("zPreset").value]; if (!p) return;
+    $("zfSl").value = hzToSlider(p[0]); $("zrSl").value = p[1];
+    $("pfSl").value = hzToSlider(p[2]); $("prSl").value = p[3];
+  }
+  function zFilter() {
+    var zf = sliderToHz(+$("zfSl").value), zr = +$("zrSl").value, pf = sliderToHz(+$("pfSl").value), pr = +$("prSl").value;
+    var tz = 2 * Math.PI * zf / FS, tp = 2 * Math.PI * pf / FS;
+    return { zf: zf, zr: zr, pf: pf, pr: pr, tz: tz, tp: tp,
+      b: [1, -2 * zr * Math.cos(tz), zr * zr], a: [1, -2 * pr * Math.cos(tp), pr * pr] };
+  }
+  function drawZ() {
+    var Z = zFilter(), c = colors(), probe = sliderToHz(+$("probeSl").value), om = 2 * Math.PI * probe / FS;
+    $("zfOut").textContent = fmtHz(Z.zf); $("zrOut").textContent = num(Z.zr, 3);
+    $("pfOut").textContent = fmtHz(Z.pf); $("prOut").textContent = num(Z.pr, 3);
+    $("probeOut").textContent = fmtHz(probe);
+    $("zEq").textContent = coefStr(Z);
+    $("zWarn").hidden = Z.pr < 1;
+    var zeros = [[Z.zr * Math.cos(Z.tz), Z.zr * Math.sin(Z.tz)], [Z.zr * Math.cos(Z.tz), -Z.zr * Math.sin(Z.tz)]];
+    var poles = [[Z.pr * Math.cos(Z.tp), Z.pr * Math.sin(Z.tp)], [Z.pr * Math.cos(Z.tp), -Z.pr * Math.sin(Z.tp)]];
+    var P = [Math.cos(om), Math.sin(om)];
+    function dist(q) { return Math.hypot(P[0] - q[0], P[1] - q[1]); }
+    var dz = dist(zeros[0]) * dist(zeros[1]), dp = dist(poles[0]) * dist(poles[1]);
+    $("dz").textContent = num(dz, 4); $("dp").textContent = num(dp, 4);
+    $("dg").textContent = "×" + num(dz / dp, 3) + " (" + dbStr(dz / dp) + ")";
+
+    var cv = $("zPlane");
+    if (cv.clientWidth) {
+      var p = prep(cv), ctx = p.ctx, w = p.w, h = p.h, cx = w / 2, cy = h / 2 + 4, U = (Math.min(w, h) / 2 - 22) / 1.22;
+      function SX(q) { return cx + q[0] * U; }
+      function SY(q) { return cy - q[1] * U; }
+      seg(ctx, cx - 1.22 * U, cy, cx + 1.22 * U, cy, c.line, 1);
+      seg(ctx, cx, cy - 1.22 * U, cx, cy + 1.22 * U, c.line, 1);
+      ctx.strokeStyle = c.muted; ctx.lineWidth = 1.2; ctx.beginPath(); ctx.arc(cx, cy, U, 0, 2 * Math.PI); ctx.stroke();
+      label(ctx, "0 Hz", cx + U + 4, cy + 14, c.muted, MONO);
+      label(ctx, "24 kHz", cx - U - 4, cy + 14, c.muted, MONO, "right");
+      label(ctx, "12 kHz", cx + 4, cy - U - 4, c.muted, MONO);
+      label(ctx, "mirror image", cx + 4, cy + U + 14, c.muted, MONO);
+      zeros.forEach(function (q) { seg(ctx, SX(P), SY(P), SX(q), SY(q), c.acc, 1.5); });
+      ctx.save(); ctx.setLineDash([5, 3]);
+      poles.forEach(function (q) { seg(ctx, SX(P), SY(P), SX(q), SY(q), c.acc2, 1.5); });
+      ctx.restore();
+      zeros.forEach(function (q) { ring(ctx, SX(q), SY(q), 6, c.acc, 2.2); });
+      poles.forEach(function (q) {
+        var x = SX(q), y = SY(q), r = 6;
+        seg(ctx, x - r, y - r, x + r, y + r, c.acc2, 2.4); seg(ctx, x - r, y + r, x + r, y - r, c.acc2, 2.4);
+      });
+      dot(ctx, SX(P), SY(P), 5.5, c.ink);
+      label(ctx, "z-plane", 8, 16, c.muted);
+    }
+    var iv = $("zImp");
+    if (iv.clientWidth) {
+      var ip = prep(iv), ic = ip.ctx, iw = ip.w, ih = ip.h, NS = 300, hh = impulse(Z, NS);
+      var mx = 0; for (var i = 0; i < NS; i++) mx = Math.max(mx, Math.abs(hh[i]));
+      var mid = ih / 2 + 6, amp = ih / 2 - 26, ix0 = 10, ix1 = iw - 10;
+      seg(ic, ix0, mid, ix1, mid, c.line, 1);
+      ic.strokeStyle = Z.pr >= 1 ? c.warn : c.acc; ic.lineWidth = 1.3; ic.beginPath();
+      for (i = 0; i < NS; i++) { var X = ix0 + i / (NS - 1) * (ix1 - ix0), Y = mid - hh[i] / (mx || 1) * amp; if (i) ic.lineTo(X, Y); else ic.moveTo(X, Y); }
+      ic.stroke();
+      label(ic, "impulse response, 300 samples (6.25 ms)", 8, 16, c.muted);
+      label(ic, "scaled to fit: largest value " + (mx > 1e4 ? mx.toExponential(1) : num(mx, 2)), 8, ih - 6, c.muted, MONO);
+    }
+    var rv = $("zResp");
+    if (rv.clientWidth) {
+      var rp = prep(rv), rc = rp.ctx, rx0 = 56, rx1 = rp.w - 12, ry0 = 12, ry1 = rp.h - 40;
+      var fs = logFreqs(600), dbs = fs.map(function (f) { return db(Hmag(Z, 2 * Math.PI * f / FS)); });
+      var r = rangeFor(dbs, 60);
+      freqTicks(rc, rx0, rx1, ry0, ry1, c);
+      var DY = dbAxis(rc, rx0, rx1, ry0, ry1, r[0], r[1], c);
+      rc.save(); rc.beginPath(); rc.rect(rx0, ry0 - 4, rx1 - rx0, ry1 - ry0 + 8); rc.clip();
+      rc.strokeStyle = Z.pr >= 1 ? c.warn : c.acc; rc.lineWidth = 2; rc.beginPath();
+      fs.forEach(function (f, j) { var xx = logX(f, rx0, rx1), yy = DY(dbs[j]); if (j) rc.lineTo(xx, yy); else rc.moveTo(xx, yy); });
+      rc.stroke(); rc.restore();
+      dot(rc, logX(probe, rx0, rx1), DY(db(dz / dp)), 5, c.ink);
+    }
+  }
+
+  /* ---------- wiring ---------- */
+  function drawAll() { drawOnePole(); drawTrunc(); drawTone(); drawBQ(); drawZ(); }
+  // the click figure and the tone figure share one filter: keep their a sliders in step
+  $("aSl").addEventListener("input", function () { $("aSl2").value = $("aSl").value; drawOnePole(); drawTrunc(); drawTone(); });
+  $("aSl2").addEventListener("input", function () { $("aSl").value = $("aSl2").value; drawOnePole(); drawTrunc(); drawTone(); });
+  $("toneSl").addEventListener("input", drawTone);
+  $("tone0").addEventListener("click", function () { $("toneSl").value = 0; drawTone(); });
+  $("toneN").addEventListener("click", function () { $("toneSl").value = 1000; drawTone(); });
+  $("stepBtn").addEventListener("click", function () { OP.K = OP.K >= OP.N ? 1 : OP.K + 1; drawOnePole(); });
+  $("allBtn").addEventListener("click", function () { OP.K = OP.N; drawOnePole(); });
+  $("resetBtn").addEventListener("click", function () { OP.K = 1; drawOnePole(); });
+  $("nSl").addEventListener("input", drawTrunc);
+  $("bqPreset").addEventListener("input", drawBQ);
+  $("zPreset").addEventListener("input", function () { applyZPreset(); drawZ(); });
+  ["zfSl", "zrSl", "pfSl", "prSl"].forEach(function (id) {
+    $(id).addEventListener("input", function () { $("zPreset").value = "custom"; drawZ(); });
+  });
+  $("probeSl").addEventListener("input", drawZ);
+  var raf = 0;
+  window.addEventListener("resize", function () { cancelAnimationFrame(raf); raf = requestAnimationFrame(drawAll); });
+  if (window.matchMedia) {
+    var mq = window.matchMedia("(prefers-color-scheme: dark)");
+    if (mq.addEventListener) mq.addEventListener("change", drawAll);
+  }
+  new MutationObserver(drawAll).observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(drawAll);
+  buildTimeline();
+  applyZPreset();
+  drawAll();
+})();
+</script>
+</body>
+</html>

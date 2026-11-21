@@ -9,6 +9,7 @@ A programmable effects box for my acoustic guitar. It sits between the guitar an
 - Pisound Acrylic Case
 - microSD card (A2), OS: 64-bit Raspberry Pi OS Lite, running headless over Wi-Fi/SSH
 - Guitar: 1990s Ovation Celebrity with an onboard active preamp (9V battery, EQ knobs, volume slider). Low-impedance output, so no external preamp is needed.
+- Planned, not yet bought (for body-IR correction in M4): a small-diaphragm condenser mic and a 2-input USB audio interface (one mic input with 48 V phantom power, one Hi-Z instrument input). It records the piezo and the mic on one clock so a filter can be fitted on the laptop to turn the piezo signal into the mic'd sound. This is measurement gear for the laptop only; the live signal path stays on the Pisound.
 
 Signal chain: guitar → Pisound in → Pi (audio server → effect) → Pisound out → acoustic amp.
 Control: phone/laptop browser → web app on the Pi → effect parameters/presets.
@@ -72,4 +73,4 @@ related work; write one with `/research-note <what to record>`.
 ## Reference
 
 - Pisound: https://blokas.io/pisound/
-- Earlier explainer pages from planning (latency concepts, shopping list) live as Claude artifacts on my account
+- `explainers/`: self-contained HTML explainers for design decisions and the audio/DSP concepts behind them (latency, compute cost, what a sample is, the shopping list). I'm new to audio, music and hardware, so new concepts get a page here in the same style; list each one in `explainers/README.md`.

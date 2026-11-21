@@ -176,6 +176,23 @@ footer a { color: var(--control); }
 </section>
 
 <section>
+  <div class="sec-head">
+    <h2>4 · For capturing your guitar's body sound</h2>
+    <p>The under-saddle piezo hears the strings but not the wooden body, which is why plugged-in acoustics sound thin. To correct that, record the piezo and a good microphone at the same moment, then fit a filter on your laptop that turns the piezo track into the mic track. The Pi then runs that filter live. You only need this gear for the measurement sessions, not for playing.</p>
+  </div>
+  <div class="chain" aria-label="Measurement setup">
+    <span class="node">Guitar (piezo)</span><span class="arrow">→ instrument input →</span>
+    <span class="node buy">USB audio interface</span><span class="arrow">←  mic input, 48 V ←</span>
+    <span class="node buy">Condenser mic</span>
+    <span class="arrow" style="flex-basis:100%"></span>
+    <span class="node buy">USB audio interface</span><span class="arrow">→ USB →</span>
+    <span class="node" style="border-color:var(--control)">Laptop: record both, fit the filter</span><span class="arrow">→ filter file →</span>
+    <span class="node">Pi 5</span>
+  </div>
+  <div class="list" id="measure"></div>
+</section>
+
+<section>
   <div class="sec-head"><h2>Designing new sounds: nothing extra to buy</h2><p>It's all software on the hardware above.</p></div>
   <ol class="steps">
     <li><b>Write or generate an effect</b> on your laptop or on the Pi over SSH, in C++ or Faust, by hand or with an AI coding tool.</li>
@@ -200,7 +217,7 @@ footer a { color: var(--control); }
 <section>
   <div class="sec-head"><h2>Don't buy these</h2></div>
   <div class="skip">
-    <div><b>A USB audio interface</b>The Pisound replaces it and avoids the extra USB buffering.</div>
+    <div><b>A USB audio interface for the live box</b>The Pisound replaces it and avoids the extra USB buffering. The interface in section 4 is only for recording measurements on your laptop.</div>
     <div><b>HiFiBerry DAC+ ADC</b>Its input is built for mics and line level; guitar sounds muffled through it.</div>
     <div><b>Soldering iron or GPIO header kits</b>The Pisound comes assembled, and the case includes the standoffs.</div>
     <div><b>A Pisound older than v1.2</b>Earlier versions have taller jacks that hit the Pi 5's cooler. New stock is v1.2; double-check if buying used.</div>
@@ -242,6 +259,16 @@ footer a { color: var(--control); }
         why: 'Ordinary mono guitar cables work in the Pisound\'s stereo jacks; your signal uses the left channel.' },
       { id: 'patch', name: 'Short ¼" patch cable (6–12 in)', price: 6, tags: ['preamp → box, loopback test'],
         why: 'Connects the preamp to the box. Later it doubles as the loopback cable (Pisound out → in) for measuring real latency.' }
+    ],
+    measure: [
+      { id: 'mic', name: 'Small-diaphragm condenser microphone', price: 100, tags: ['the reference', 'key'],
+        why: 'The recording of what your guitar really sounds like in the room, which the filter is fitted to match. Small-diaphragm "pencil" condensers are the usual choice for acoustic guitar because their response is fairly even. Examples: Behringer C-2 (budget, sold as a pair), Rode M5, Audio-Technica AT2021. A flat measurement mic such as the Dayton Audio EMM-6 or Behringer ECM8000 (around $40–60) is the most honest target; a studio mic gives a more flattering one. Condensers need 48 V phantom power, which the interface supplies.' },
+      { id: 'iface', name: 'USB audio interface, 2 inputs', price: 150, tags: ['records both at once', 'key'],
+        why: 'Records the piezo and the mic on the same clock, so the two tracks line up sample for sample. That alignment is what makes the fit work. It needs one mic input with 48 V phantom power and one instrument (Hi-Z) input for the guitar. Examples: Focusrite Scarlett 2i2, MOTU M2, Audient iD4, Behringer UMC202HD (budget, around $90). It plugs into your laptop. The Pisound can\'t do this job: its inputs have no phantom power or mic preamp.' },
+      { id: 'xlr', name: 'XLR microphone cable (10–15 ft)', price: 15, tags: ['mic → interface'],
+        why: 'Condenser mics connect over XLR. Your spare ¼" instrument cable from section 3 takes the guitar into the interface.' },
+      { id: 'stand', name: 'Mic stand with boom arm', price: 25, tags: ['repeatable placement'],
+        why: 'Holds the mic still at the same spot every session, typically about 30 cm (12 in) from where the neck meets the body. A hand-held or moving mic changes the sound the filter is fitted to.' }
     ]
   };
 
