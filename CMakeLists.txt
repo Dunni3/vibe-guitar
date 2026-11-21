@@ -42,6 +42,7 @@ add_library(fxcore STATIC
   engine/src/registry.cpp
   engine/src/preset.cpp
   engine/src/wav.cpp
+  engine/src/tap.cpp
   engine/effects/gain.cpp
   engine/effects/delay.cpp
 )
@@ -53,6 +54,11 @@ target_compile_options(fxcore PRIVATE ${FX_WARNINGS})
 add_executable(fxrender engine/tools/fxrender.cpp)
 target_link_libraries(fxrender PRIVATE fxcore)
 target_compile_options(fxrender PRIVATE ${FX_WARNINGS})
+
+# --- Tap feeder: stand-in for the live engine's signal tap (see fx/tap.h) ---
+add_executable(fxtapfeed engine/tools/fxtapfeed.cpp)
+target_link_libraries(fxtapfeed PRIVATE fxcore)
+target_compile_options(fxtapfeed PRIVATE ${FX_WARNINGS})
 
 if(FX_BUILD_TESTS)
   enable_testing()

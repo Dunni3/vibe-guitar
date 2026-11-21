@@ -2,10 +2,12 @@
 //   ctest --test-dir build --output-on-failure     (or ./build/fxtests)
 #include <cmath>
 #include <cstdint>
+#include <cstring>
 #include <cstdio>
 #include <filesystem>
 #include <fstream>
 #include <functional>
+#include <iterator>
 #include <random>
 #include <string>
 #include <vector>
@@ -15,6 +17,7 @@
 #include "fx/denormals.h"
 #include "fx/preset.h"
 #include "fx/registry.h"
+#include "fx/tap.h"
 #include "fx/wav.h"
 
 namespace fs = std::filesystem;
@@ -376,6 +379,40 @@ TEST(wav_rejects_non_wav) {
 }
 
 // --- Main ------------------------------------------------------------------
+
+TEST(tap_layout_and_wraparound) {
+  // The Python reader (webapp/fxweb/live/tap.py) depends on this exact layout.
+  const fs::path path = fs::temp_directory_path() / "fxtests-tap";
+  fx::TapWriter tap;
+  tap.open(path.string(), 2, 48000, {"in", "out"}, 1000);  // rounds up to 1024
+  CHECK(tap.capacity() == 1024);
+  std::vector<float> a(700), b(700);
+  for (int round = 0; round < 3; ++round) {  // 2100 frames: wraps twice
+    for (int i = 0; i < 700; ++i) {
+      a[i] = static_cast<float>(round * 700 + i);
+      b[i] = -a[i];
+    }
+    const float* ch[2] = {a.data(), b.data()};
+    tap.write(ch, 2, 700);
+  }
+  std::ifstream f(path, std::ios::binary);
+  std::vector<char> bytes((std::istreambuf_iterator<char>(f)), std::istreambuf_iterator<char>());
+  CHECK(bytes.size() == fx::kTapHeaderBytes + 1024 * 2 * sizeof(float));
+  auto u32 = [&](size_t off) { uint32_t v; std::memcpy(&v, bytes.data() + off, 4); return v; };
+  uint64_t pos;
+  std::memcpy(&pos, bytes.data() + 32, 8);
+  CHECK(std::string(bytes.data(), 8) == "FXTAP001");
+  CHECK(u32(8) == 1 && u32(12) == 2 && u32(16) == 48000 && u32(20) == 1024);
+  CHECK(pos == 2100);
+  CHECK(std::string(bytes.data() + 64) == "in" && std::string(bytes.data() + 80) == "out");
+  const float* data = reinterpret_cast<const float*>(bytes.data() + fx::kTapHeaderBytes);
+  for (uint64_t p = 2100 - 1024; p < 2100; ++p) {
+    CHECK(data[(p % 1024) * 2] == static_cast<float>(p));
+    CHECK(data[(p % 1024) * 2 + 1] == -static_cast<float>(p));
+  }
+  tap.close();
+  fs::remove(path);
+}
 
 int main() {
   int failedTests = 0;
