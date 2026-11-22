@@ -1,9 +1,105 @@
 # Guitar FX Box
 
-Programmable effects for an acoustic guitar on a Raspberry Pi 5 + Pisound.
-See [CLAUDE.md](CLAUDE.md) for the hardware, design decisions and milestones.
+A Raspberry Pi with a [Pisound](https://blokas.io/pisound/) audio board on it, sitting between an
+acoustic guitar and its amp. Every sample of the guitar signal passes through code running on the
+Pi, so the effects are whatever we write: plain arithmetic on numbers, from scratch, in C++. A web
+app on the Pi, opened on a phone, picks the sound, edits its settings, shows what the box is
+hearing and records it.
 
-## Layout
+It's also a learning project. I'm new to audio, so alongside the code there's a growing set of
+visual explainers for the signal processing, the maths behind it and how the hardware works. The
+long-term goal is a framework for *learning* filters from target data instead of hand-designing
+them.
+
+```
+acoustic guitar ──► Pisound in ──► Raspberry Pi 5: your effect code ──► Pisound out ──► amp
+                                            ▲
+                     phone browser ──Wi-Fi──┘  web app: presets, settings, live analysis, recording
+```
+
+## What it does
+
+- **Runs effects you write.** An effect is a small C++ class that gets a block of samples and
+  changes them in place: gain, delay, filters, anything you can express as arithmetic. Each one is
+  tested and profiled automatically, and saved as a preset with its settings.
+- **Is controlled from your phone.** Pick a preset between songs, tweak its sliders, save it. The
+  web app is served by the Pi itself, so it works with no internet; the Pi falls back to its own
+  Wi-Fi hotspot when it can't find yours.
+- **Shows the signal live.** Level meters, a tuner, waveform, spectrum and spectrogram, a chord
+  guess, overtones, attacks and tempo, noise floor and mains hum, and the frequency response
+  between two signals (what an effect does, or how a mic differs from the pickup).
+- **Records it.** Takes are saved as 24-bit WAV files with notes, markers and the preset that was
+  playing, and a "save the last 30 s" button keeps what you already played.
+- **Keeps latency low.** The guitar's own body is heard alongside the amp, so a late amp signal
+  smears the sound. The target is under about 10 ms from pluck to speaker, and each preset records
+  the smallest buffer it can run at without clicks.
+
+## Where it's going: filters fitted to a target sound
+
+A plugged-in acoustic sounds thin because its under-saddle pickup hears the strings but not the
+wooden body. The first experiment fixes that by measurement instead of by ear:
+
+1. Put a condenser microphone in front of the guitar and record it **at the same time** as the
+   pickup, through a two-input USB audio interface (so both share one clock).
+2. On a laptop, fit a filter that turns the pickup recording into the mic recording, as closely as
+   possible.
+3. Run that filter live on the Pi. The pickup now sounds like the mic'd guitar.
+
+The Live page already previews this: with the mic and pickup as two channels it shows mic ÷ pickup
+per frequency, which is the filter the fit will estimate. Past that, the same idea generalizes:
+give the system recordings of a sound you want and let it learn the filter that gets there.
+
+## Learning the theory: explainers
+
+[`explainers/`](explainers/) holds self-contained interactive pages, each built to make one idea
+concrete, with diagrams, sliders and sound. Download the folder and open any page in a browser;
+the web app also serves them at `/explainers/`.
+
+| Page | What it covers |
+|------|----------------|
+| [what-is-a-sample](explainers/what-is-a-sample.html) | What one sample is, and how five numbers become a different gain at every frequency |
+| [filters-and-frequencies](explainers/filters-and-frequencies.html) | How filter arithmetic picks which frequencies get louder: the biquad, poles and zeros, a playground with audio |
+| [feedback-unrolled](explainers/feedback-unrolled.html) | Recursion unrolled into an impulse response, and its link to the frequency response through Fourier |
+| [latency](explainers/latency.html) | Where the milliseconds go, and why clicks are missed deadlines, not slow maths |
+| [effects-compute-cost](explainers/effects-compute-cost.html) | How much arithmetic each effect costs, against what the Pi 5 can do |
+| [live-analysis](explainers/live-analysis.html) | How each panel of the Live page is computed: pitch, chords, tempo, response and coherence |
+| [shopping-list](explainers/shopping-list.html) | The parts list, assembly steps and what not to buy |
+
+## Build your own
+
+Everything plugs, clips or screws together: no soldering, and the only tool is a small Phillips
+screwdriver.
+
+| Part | Rough price (US, Nov 2026) |
+|------|-----------------|
+| Raspberry Pi 5 (4 GB is plenty; mine is 8 GB) | $110 |
+| Blokas Pisound v1.2 (older versions don't fit the Pi 5's cooler) | $125 |
+| Pisound acrylic case, Pi Active Cooler, official 27 W USB-C supply | $36 |
+| microSD card, 32–64 GB, A2 rated | $18 |
+| Two ¼" instrument cables | $20 |
+
+That's about $310 for the box. For the filter-fitting experiment, add a small-diaphragm condenser
+mic, a two-input USB audio interface with 48 V phantom power, an XLR cable and a mic stand: about
+$290 more, used only on the laptop for measurements. A guitar with a **passive** pickup (no
+battery, no knobs on the side) also needs a preamp/DI pedal in front of the box; mine, an Ovation
+with an onboard preamp, doesn't. Details and a tick-off checklist:
+[explainers/shopping-list.html](explainers/shopping-list.html).
+
+Then: flash 64-bit Raspberry Pi OS Lite with Wi-Fi and SSH set in Raspberry Pi Imager, assemble,
+clone this repo on the Pi, and follow [Setup](#setup) and [Web app](#web-app) below. The Pi's
+system setup (hotspot fallback) is in [pi/README.md](pi/README.md).
+
+## Status
+
+Working today: the effect engine and its tests, presets, the profiling harness, the web app with
+live analysis and recording, and the offline hotspot, all running on the Pi against a simulated
+guitar signal. Next: the real-time audio path through the Pisound (a JACK engine), measuring its
+latency, then the first effects (EQ, compressor, delay, reverb) and the body-filter fit. Design
+decisions and milestones are in [CLAUDE.md](CLAUDE.md).
+
+## For developers
+
+### Layout
 
 ```
 engine/
@@ -29,13 +125,13 @@ recordings/               Takes from the web app's Live page (gitignored): <id>.
 profiles/                 Profiling output (gitignored)
 ```
 
-## Setup
+### Setup
 
 Mac: `brew install cmake nlohmann-json` and [uv](https://docs.astral.sh/uv/).
 Pi (Raspberry Pi OS): `sudo apt install cmake g++ nlohmann-json3-dev` and uv.
 If nlohmann-json isn't installed, CMake fetches a pinned copy.
 
-## Commands
+### Commands
 
 ```
 make test                 # build + unit tests
@@ -47,7 +143,7 @@ make profile              # generate test signals, profile all presets at 32/64/
 uv run fx-profile --help
 ```
 
-## Web app
+### Web app
 
 A phone-friendly page to pick, load, edit and save presets, with a health panel (buffer,
 latency, DSP load, xruns, CPU temp). It runs against a **fake engine** until the Pisound is in:
@@ -74,7 +170,7 @@ with no CDN, so it works with the Pi as its own Wi-Fi hotspot and no internet.
   `POST /api/engine/load`, `GET /api/engine`, `GET /api/health`, `GET /api/catalog`.
   Interactive docs at `/api/docs`.
 
-### Live page and recording
+#### Live page and recording
 
 **Live** shows what the box hears, about 30 times a second: level meters with clip lights and
 headroom, a tuner, a note-locked waveform, spectrum and 20 s spectrogram, a chord guess with
@@ -117,7 +213,7 @@ sudo systemctl daemon-reload
 sudo systemctl enable --now guitar-fx-web@$USER    # assumes the repo is at ~/vibe-guitar
 ```
 
-## Offline (no internet): the Pi's own hotspot
+### Offline (no internet): the Pi's own hotspot
 
 If the Pi can't join home Wi-Fi within ~40 s of booting, it starts its own Wi-Fi network `fxbox`
 (WPA2; password set on the Pi, not in the repo). Join it on the phone and open
@@ -125,7 +221,7 @@ If the Pi can't join home Wi-Fi within ~40 s of booting, it starts its own Wi-Fi
 `sudo fxbox-net home|hotspot`; `fxbox-net status` shows where it is. Setup, design and testing:
 [pi/README.md](pi/README.md).
 
-## Adding an effect
+### Adding an effect
 
 1. Copy `engine/effects/gain.cpp`: define `makeInfo()` (id, params with ranges and defaults),
    allocate in `prepare()`, clear in `reset()`, process in place in `process()`.
@@ -137,7 +233,7 @@ If the Pi can't join home Wi-Fi within ~40 s of booting, it starts its own Wi-Fi
 Rules for `process()`: no allocation, locks, logging, exceptions or I/O; read each parameter
 once per block; output must not depend on block size.
 
-## Profiling numbers
+### Profiling numbers
 
 Laptop timings check the plumbing only: macOS preempts the process, so the worst cases are
 scheduler spikes, not DSP cost. Real buffer sizes come from running `make profile` on the Pi
