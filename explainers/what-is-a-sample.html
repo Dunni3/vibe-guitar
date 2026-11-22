@@ -176,6 +176,21 @@ canvas { display: block; width: 100%; }
 .phasors { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; }
 .phasors > div { background: var(--bg); border: 1px solid var(--line); border-radius: 6px; }
 .plot-title { font-family: var(--font-display); font-weight: 500; font-size: 1rem; margin: 6px 0 0; }
+h3.step { display: flex; gap: 10px; align-items: baseline; flex-wrap: wrap; margin-top: 12px; }
+h3.step span {
+  font-family: var(--font-mono); font-size: 0.75rem; font-weight: 400;
+  color: var(--surface); background: var(--accent); border-radius: 4px; padding: 1px 7px;
+}
+.glossary { margin: 0; padding-left: 1.2em; display: flex; flex-direction: column; gap: 8px; max-width: 65ch; }
+.play { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+.play button {
+  font: inherit; font-family: var(--font-display); font-size: 0.9rem;
+  padding: 8px 14px; border-radius: 6px; cursor: pointer;
+  border: 1px solid var(--line); background: var(--bg); color: var(--ink);
+}
+.play button.primary { background: var(--accent); border-color: var(--accent); color: var(--surface); }
+.play button:hover { border-color: var(--accent); }
+.play button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
 /* matrix diagram */
 svg.diagram { display: block; width: 100%; min-width: 560px; height: auto; }
@@ -240,8 +255,8 @@ svg.diagram { display: block; width: 100%; min-width: 560px; height: auto; }
   <p>A pure 440 Hz tone (the A on the 5th fret of your high E string) is a stream of numbers that swings up and down 440 times a second, so one cycle spans 48,000 ÷ 440 ≈ 109 samples. A 4 kHz tone cycles every 12 samples. When both sound at once, the air pressure is the sum of the two, so the stream is the two streams added sample by sample.</p>
   <div class="figure">
     <h3>Try it: pick a sample</h3>
-    <label class="ctl" for="supN"><span class="row">Sample number <output id="supNOut">40</output></span>
-      <input id="supN" type="range" min="0" max="95" value="40">
+    <label class="ctl" for="supN"><span class="row">Sample number <output id="supNOut">23</output></span>
+      <input id="supN" type="range" min="0" max="95" value="23">
     </label>
     <canvas id="supCanvas" data-h="330" aria-label="A 440 Hz tone, a 4 kHz tone, and their sum, shown as 96 sample dots each, with one sample highlighted"></canvas>
     <p class="readout" id="supOut"></p>
@@ -273,26 +288,107 @@ svg.diagram { display: block; width: 100%; min-width: 560px; height: auto; }
       <div class="stat"><span class="k">One-sample delay, as a share of this tone's cycle</span><span class="v" id="twDeg"></span></div>
       <div class="stat"><span class="k">Output size ÷ input size</span><span class="v acc" id="twGain"></span></div>
     </div>
-    <h4 class="plot-title">The same ratio at every frequency</h4>
-    <canvas id="twResp" data-h="160" aria-label="Gain of the two-sample filter across frequency, with the current tone marked"></canvas>
+    <h4 class="plot-title">The same ratio (output size ÷ input size) at every frequency</h4>
+    <canvas id="twResp" data-h="176" aria-label="Gain of the two-sample filter across frequency, with the current tone marked"></canvas>
     <p class="caption">40 samples (0.8 ms). Top: each sample (dark) beside the sample before it (pink); those two get mixed. Bottom: the output (blue) over the faint input. Slide the frequency up and watch the pairs drift apart until they're opposites.</p>
   </div>
   <p>Flip one sign, <code>½·x[n] − ½·x[n−1]</code>, and you get the opposite. Slow tones cancel against their nearly equal neighbour and fast ones survive: a low-cut (high-pass) filter. The weights didn't pick out frequencies. The delay did, because one sample is a different fraction of a cycle for every frequency. The weights only decide what to do with the mismatch.</p>
 </section>
 
 <section id="rotation">
-  <h2>A delay is a rotation, different for each frequency</h2>
-  <p>This is where the math makes it clean. Write a tone as a complex exponential, <code>x[n] = e<sup>jωn</sup></code>, where <code>ω = 2πf ÷ 48,000</code> is the angle the wave advances per sample. (A real sine is this plus its mirror image <code>e<sup>−jωn</sup></code>, and the coefficients are real, so the mirror image behaves the same way.) Delay it by one sample:</p>
-  <div class="eq">x[n−1] = e<sup>jω(n−1)</sup> = e<sup>−jω</sup> · x[n]</div>
-  <p>The wave is unchanged except for multiplication by <code>e<sup>−jω</sup></code>, a complex number of length 1 at angle −ω. For a bass note ω is tiny, so the rotation is tiny. At 24 kHz, ω = π, a half turn, which is multiplication by −1. So a filter's weighted sum of delayed copies is:</p>
-  <div class="eq">y[n] = (b0 + b1·e<sup>−jω</sup> + b2·e<sup>−2jω</sup>) · x[n] = H(ω) · x[n]</div>
-  <p>The bracket is one complex number that depends only on frequency. Any tone goes in and comes out multiplied by it: scaled by <code>|H(ω)|</code> and shifted in time by its angle. Because the filter is linear, a chord (a sum of tones) comes out as the sum of each tone times its own H. The filter applies a different multiplier to every frequency at once, without computing any of them.</p>
-  <p>Feedback works the same way. The past-output terms form a second sum, and the multiplier becomes a ratio of two quadratics in <code>e<sup>−jω</sup></code>, which is where the name <strong>biquad</strong> comes from:</p>
-  <div class="eq">H(ω) = (b0 + b1·e<sup>−jω</sup> + b2·e<sup>−2jω</sup>) ÷ (1 + a1·e<sup>−jω</sup> + a2·e<sup>−2jω</sup>)</div>
+  <h2>Why each frequency gets its own multiplier</h2>
+  <p>The two-sample filter treats slow and fast tones differently even though its weights are plain numbers. This section works out exactly how differently, for any frequency and any coefficients, and shows that the answer is always one number per frequency: how much the filter scales that tone. The tool that makes it easy is drawing a tone as an arrow. Complex numbers only appear at the end, as shorthand for those arrows.</p>
+
+  <h3 class="step"><span>Step 1</span> A filter can't change a tone's frequency</h3>
+  <p>Take one pure tone, <code>x[n] = A·sin(ωn + φ)</code>. A is its amplitude, φ is its phase (where in its cycle it starts), and ω is how far through its cycle it moves per sample: <code>ω = 360° × f ÷ 48,000</code>. At 3 kHz that's 22.5° per sample, so one cycle takes 16 samples. (Formulas usually give ω in radians, 2πf ÷ 48,000, but degrees are easier to picture.)</p>
+  <p>The biquad only ever does three things to its input:</p>
+  <ul class="glossary">
+    <li><strong>Scale</strong>: <code>b·x[n]</code> is the same tone with amplitude b·A.</li>
+    <li><strong>Delay</strong>: <code>x[n−1] = A·sin(ωn + φ − ω)</code> is the same tone with its phase moved back by ω.</li>
+    <li><strong>Add</strong>: two sine waves of the same frequency always add up to one sine wave of that frequency, with some new amplitude and phase.</li>
+  </ul>
+  <p>So whatever the coefficients, a tone at frequency ω comes out as a tone at frequency ω. Only its amplitude and phase can change. Everything a filter does to one frequency is captured by two numbers: a <strong>gain</strong> (output amplitude ÷ input amplitude) and a <strong>phase shift</strong>. The remaining steps compute them.</p>
+
+  <h3 class="step"><span>Step 2</span> Draw a tone as an arrow</h3>
+  <p>With the frequency fixed, a tone is fully described by its amplitude and phase, so draw it as an arrow of length A at angle φ. To get the actual samples, let the arrow spin forward by ω every sample. The height of its tip is the sample value. A sine wave is exactly that: the height of a point going round a circle.</p>
+  <p>In linear-algebra terms: <code>A·sin(ωn + φ) = (A·cos φ)·sin(ωn) + (A·sin φ)·cos(ωn)</code>. Every tone at frequency ω is a combination of the two fixed waves <code>sin(ωn)</code> and <code>cos(ωn)</code>, so the tones at one frequency form a two-dimensional vector space. The arrow is a tone's coordinates in that space.</p>
+
+  <h3 class="step"><span>Step 3</span> Scale, delay and add, done with arrows</h3>
+  <ul class="glossary">
+    <li><strong>Scaling</strong> a tone by b scales its arrow by b. A negative b flips it round.</li>
+    <li><strong>Delaying</strong> a tone by one sample gives the arrow as it was one sample ago, which is the current arrow turned back (clockwise) by ω. Two samples of delay turn it back by 2ω. This is the sense in which a delay is a rotation, and the angle depends on frequency: a sliver for a bass note, 22.5° at 3 kHz, a half turn at 24 kHz.</li>
+    <li><strong>Adding</strong> tones adds their arrows tip to tail, because adding tones adds their coordinates.</li>
+  </ul>
+  <p>All the arrows spin at the same rate, so the angles between them never change, and neither does the length of their sum. That's step 1 again, in pictures: the output is a steady tone at the same frequency.</p>
+
+  <div class="figure">
+    <h3>Try it: one tone as a spinning arrow</h3>
+    <div class="controls">
+      <label class="ctl" for="rotMode"><span class="row">Filter</span>
+        <select id="rotMode">
+          <option value="avg" selected>Average: ½·x[n] + ½·x[n−1]</option>
+          <option value="diff">Difference: ½·x[n] − ½·x[n−1]</option>
+        </select>
+      </label>
+      <label class="ctl" for="rotFreq"><span class="row">Tone frequency <output id="rotFreqOut"></output></span>
+        <input id="rotFreq" type="range" min="0" max="1000" value="805">
+      </label>
+    </div>
+    <div class="play">
+      <button type="button" id="rotPlay" class="primary">▶ Spin</button>
+      <button type="button" id="rotStep">Step one sample</button>
+    </div>
+    <canvas id="rotCanvas" data-h="260" aria-label="Input, delayed and output tones drawn as arrows on a circle, with the heights of their tips traced out as waves"></canvas>
+    <div class="stats">
+      <div class="stat"><span class="k">Angle between dark and pink arrows (ω)</span><span class="v acc2" id="rotDeg"></span></div>
+      <div class="stat"><span class="k">Blue arrow's length = output ÷ input</span><span class="v acc" id="rotLen"></span></div>
+    </div>
+    <p class="caption">Left: the input tone (dark arrow), the same tone one sample ago (pink, turned back by ω), and the filter output (blue). For the average, the blue arrow points to the midpoint of the dashed line between the other two tips. For the difference, it's half the dashed line, moved to start at the centre. Right: the height of each tip over the last 20 samples (10 on a phone), which is just the three waves. Spin it: the arrows turn together, so the blue one keeps its length, and its length is the output wave's amplitude. Then raise the frequency: the pink arrow falls further behind, and the blue one shrinks for the average or grows for the difference.</p>
+  </div>
+
+  <h3 class="step"><span>Step 4</span> The gain at any frequency</h3>
+  <p>Now apply this to <code>y[n] = b0·x[n] + b1·x[n−1] + b2·x[n−2]</code>. Give the input an arrow of length 1, pointing right. The output arrow is then:</p>
+  <div class="eq">b0 × (the arrow) + b1 × (the arrow turned back by ω) + b2 × (the arrow turned back by 2ω)</div>
+  <p>The length of that sum is the gain at this frequency, and its angle is the phase shift. Change the frequency and only the turning angles change; the coefficients stay put. That is the answer to the original question. The filter has one fixed set of weights, but the delays turn their arrows by a different amount at each frequency, so the sum has a different length at each frequency. Sweep ω, plot the length, and you have the frequency response: the "vector of per-frequency multipliers" you were looking for.</p>
+  <div class="figure">
+    <h3>Worked example: the two-sample average</h3>
+    <div class="scroll">
+    <table class="ledger">
+      <thead><tr><th>Tone</th><th>Turn ω</th><th>The two ½-length arrows</th><th>Length of sum</th></tr></thead>
+      <tbody>
+        <tr><td class="n">0 Hz</td><td class="n">0°</td><td>point the same way</td><td class="n">1.00 (0 dB)</td></tr>
+        <tr><td class="n">6 kHz</td><td class="n">45°</td><td>45° apart</td><td class="n">0.92 (−0.7 dB)</td></tr>
+        <tr><td class="n">12 kHz</td><td class="n">90°</td><td>at right angles</td><td class="n">0.71 (−3 dB)</td></tr>
+        <tr><td class="n">18 kHz</td><td class="n">135°</td><td>135° apart</td><td class="n">0.38 (−8.3 dB)</td></tr>
+        <tr><td class="n">24 kHz</td><td class="n">180°</td><td>opposite: they cancel</td><td class="n">0 (silent)</td></tr>
+      </tbody>
+    </table>
+    </div>
+    <p class="caption">In general the length is cos(ω ÷ 2). The sum always points halfway between the two arrows, ω ÷ 2 behind the input, so this filter also delays every frequency by exactly half a sample.</p>
+  </div>
+
+  <h3 class="step"><span>Step 5</span> Complex numbers are shorthand for arrows</h3>
+  <p>You could do all of this with 2-D vectors and rotation matrices. Complex numbers just make it shorter. Write the arrow (x, y) as the number x + j·y, where j² = −1 (engineers write j because i already means current). Then:</p>
+  <ul class="glossary">
+    <li>multiplying by a real number b scales the arrow;</li>
+    <li>multiplying by <code>e<sup>jθ</sup> = cos θ + j·sin θ</code> turns it by θ. Multiply it out and you get exactly the 2 × 2 rotation matrix applied to (x, y);</li>
+    <li>adding complex numbers adds arrows.</li>
+  </ul>
+  <p>So the recipe from step 4 becomes one line, with <code>e<sup>−jω</sup></code> meaning "turned back by ω":</p>
+  <div class="eq">H(ω) = b0 + b1·e<sup>−jω</sup> + b2·e<sup>−2jω</sup></div>
+  <p>H(ω) is the output arrow for an input arrow of length 1. Its length <code>|H(ω)|</code> is the gain and its angle is the phase shift. Nothing new has happened: it's the arrow sum written as arithmetic, short enough to evaluate at thousands of frequencies to draw an EQ curve. And since the filter is linear, a chord comes out as each of its tones times that tone's own H.</p>
+
+  <h3 class="step"><span>Feedback</span> The biquad's past outputs</h3>
+  <p>The biquad also feeds back its last two outputs. Move those terms to the left-hand side:</p>
+  <div class="eq">y[n] + a1·y[n−1] + a2·y[n−2] = b0·x[n] + b1·x[n−1] + b2·x[n−2]</div>
+  <p>Once the filter settles, the output is also a tone at frequency ω (step 1), with some unknown arrow Y. The left side is Y plus its own turned-back copies, <code>Y × (1 + a1·e<sup>−jω</sup> + a2·e<sup>−2jω</sup>)</code>. The right side is the same for the input arrow X. Set them equal and solve for Y:</p>
+  <div class="eq">Y = X × (b0 + b1·e<sup>−jω</sup> + b2·e<sup>−2jω</sup>) ÷ (1 + a1·e<sup>−jω</sup> + a2·e<sup>−2jω</sup>)</div>
+  <p>So a biquad's gain is the length of one arrow sum divided by the length of another. The fraction is a ratio of two quadratics, which is where the name <strong>biquad</strong> comes from. The next figure draws both sums for real filters.</p>
+  <p>Why feedback amounts to a very long weighted sum, and how the coefficients map to poles and zeros, is worked through in <a href="feedback-unrolled.html">Four views of one filter</a>.</p>
 
   <div class="figure">
     <h3>Try it: add the arrows</h3>
-    <p class="sub caption">Each coefficient is an arrow whose length is the coefficient. The arrow for a sample from k steps ago is turned clockwise by k·ω. Add the arrows tip to tail; the length of the total (thick arrow) is how much of that frequency gets through.</p>
+    <p class="sub caption">Each coefficient is an arrow whose length is the coefficient. The arrow for a sample from k steps ago is turned clockwise by k·ω. Add the arrows tip to tail; the length of the total (thick arrow) is how much of that frequency gets through. The dashed circle has radius 1; the view zooms to fit the arrows.</p>
     <div class="controls">
       <label class="ctl" for="phPreset"><span class="row">Filter</span>
         <select id="phPreset">
@@ -331,8 +427,9 @@ svg.diagram { display: block; width: 100%; min-width: 560px; height: auto; }
       <div class="stat"><span class="k" id="phGainK">Gain</span><span class="v" id="phGain"></span></div>
     </div>
     <p class="caption" id="phNote"></p>
-    <h4 class="plot-title">|H| at every frequency, in dB</h4>
-    <canvas id="phResp" data-h="200" aria-label="Frequency response of the selected filter, with the current tone marked"></canvas>
+    <h4 class="plot-title">Gain |H| at every frequency, in dB</h4>
+    <p class="caption">Decibels are a log scale for gain: dB = 20 × log₁₀(output ÷ input). 0 dB is unchanged, +6 dB about twice as big, −6 dB about half, −20 dB a tenth.</p>
+    <canvas id="phResp" data-h="216" aria-label="Frequency response of the selected filter, with the current tone marked"></canvas>
   </div>
   <p class="callout">Notice the "weights only" notch. It does kill 1 kHz, but with three weights you can only put the cancellation in one place and live with whatever that does elsewhere: the bass dies too and the treble is boosted 4×. Feedback lets the second sum nearly copy the first everywhere except right at the notch, so the ratio stays at 1 except where you want it. That's what the two feedback coefficients buy: a sharp, local change from five numbers.</p>
 </section>
@@ -342,7 +439,7 @@ svg.diagram { display: block; width: 100%; min-width: 560px; height: auto; }
   <p>Take a stretch of N samples as a vector <code>x ∈ ℝ<sup>N</sup></code>. Its coordinates are moments in time, not frequencies. A filter with weights b0, b1, b2 is the linear map <code>y = Tx</code>, where T has b0 on the diagonal, b1 just below it and b2 below that: a banded Toeplitz matrix. Every row is the previous one shifted by one step, because the filter does the same thing at every moment.</p>
   <div class="figure">
     <div class="scroll"><svg id="matSvg" class="diagram" viewBox="0 0 600 240" role="img" aria-label="A banded circulant filter matrix equals inverse DFT times a diagonal matrix of gains times the DFT"></svg></div>
-    <p class="caption">Left: the three-tap smoother as an 8 × 8 matrix (darkest = b0, then b1, b2; the faded corners are the wrap-around). Right: the same matrix factored. The pink matrices are the Fourier transform and its inverse, whose columns are sinusoids. The middle matrix is diagonal, and its entries, shaded by size, are the smoother's gain at 8 frequencies, high at bass and zero at 24 kHz.</p>
+    <p class="caption">Left: the three-tap smoother as an 8 × 8 matrix (darkest = b0, then b1, b2; the faded corners are the wrap-around). Right: the same matrix factored. The pink matrices are the Fourier transform and its inverse, whose columns are sinusoids. The middle matrix is diagonal, and its entries, shaded by size, are the smoother's gain at 8 frequencies: full at 0 Hz, zero at 24 kHz (the middle entry), and the second half mirrors the first because the DFT also lists negative frequencies.</p>
   </div>
   <p>Wrap the band around at the edges and T is <strong>circulant</strong>. The discrete Fourier transform diagonalizes every circulant matrix: <code>T = F<sup>−1</sup> · diag(Ĥ) · F</code>. The sinusoids are the eigenvectors and the eigenvalues Ĥ are the frequency response at N frequencies. <strong>Your mental model is exactly <code>diag(Ĥ)</code></strong>: the filter written in its eigenbasis, where it is elementwise multiplication. The biquad is the same operator written in the time basis, where it's three diagonals and needs only the last few samples.</p>
   <p>Sinusoids diagonalize every such filter at once because they're the eigenvectors of the one-sample shift, and a filter that behaves the same at every moment commutes with shifting. For the endless, non-wrapping stream the same statement holds with the discrete-time Fourier transform in place of the DFT.</p>
@@ -464,6 +561,11 @@ svg.diagram { display: block; width: 100%; min-width: 560px; height: auto; }
       seg(ctx, x, yTop, x, yBot, c.line, 1);
       label(ctx, t[1], x, yBot + 14, c.muted, MONO, t[0] === 24000 ? "right" : (t[0] === 20 ? "left" : "center"));
     });
+    label(ctx, "frequency in Hz (log scale): bass on the left, treble on the right", (x0 + x1) / 2, yBot + 31, c.muted, SANS, "center");
+  }
+  function yTitle(ctx, text, y0, y1, c) {
+    ctx.save(); ctx.translate(11, (y0 + y1) / 2); ctx.rotate(-Math.PI / 2);
+    label(ctx, text, 0, 0, c.muted, SANS, "center"); ctx.restore();
   }
 
   /* ---------- Figure: superposition ---------- */
@@ -538,7 +640,8 @@ svg.diagram { display: block; width: 100%; min-width: 560px; height: auto; }
     for (n = 0; n < TW_N; n++) dot(ctx, X(n), mid - y(n) * amp, 2.8, c.acc);
     label(ctx, "y[n]: the output (blue), input faint behind it", pl, rowH + 15, c.muted);
 
-    var rp = prep($("twResp")), rc = rp.ctx, x0 = 36, x1 = rp.w - 12, y0 = 10, y1 = rp.h - 24;
+    var rp = prep($("twResp")), rc = rp.ctx, x0 = 56, x1 = rp.w - 12, y0 = 10, y1 = rp.h - 40;
+    yTitle(rc, "out ÷ in", y0, y1, c);
     function GY(v) { return y1 - v * (y1 - y0); }
     freqTicks(rc, x0, x1, y0, y1, c);
     [0, 0.5, 1].forEach(function (v) {
@@ -552,6 +655,83 @@ svg.diagram { display: block; width: 100%; min-width: 560px; height: auto; }
     }
     rc.stroke();
     dot(rc, logX(f, x0, x1), GY(g), 5, c.acc2);
+  }
+
+  /* ---------- Figure: one tone as a spinning arrow ---------- */
+  var ROT = { t: 20, playing: false, last: 0, RATE: 2.5, WIN: 20 };
+  function drawRot() {
+    var cv = $("rotCanvas"); if (!cv.clientWidth) return;
+    var s = $("rotMode").value === "avg" ? 1 : -1;
+    var f = sliderToHz(+$("rotFreq").value), om = 2 * Math.PI * f / FS;
+    $("rotFreqOut").textContent = fmtHz(f);
+    $("rotDeg").textContent = (om * 180 / Math.PI).toFixed(om < 0.1 ? 2 : 1) + "°";
+    var g = twMag(om, s);
+    $("rotLen").textContent = "×" + g.toFixed(3) + " (" + dbStr(g) + ")";
+
+    var p = prep(cv), ctx = p.ctx, w = p.w, h = p.h, c = colors(), t = ROT.t;
+    var R = Math.min(h / 2 - 18, w * 0.22), cx = R + 14, cy = h / 2 + 6;
+    // the three arrows at (continuous) time t; tip height = sample value
+    function tipIn(tt) { return [Math.cos(om * tt), Math.sin(om * tt)]; }
+    var a = tipIn(t), b = tipIn(t - 1), o = [0.5 * a[0] + s * 0.5 * b[0], 0.5 * a[1] + s * 0.5 * b[1]];
+    function PX(v) { return cx + v[0] * R; }
+    function PY(v) { return cy - v[1] * R; }
+
+    seg(ctx, cx - R - 6, cy, cx + R + 6, cy, c.line, 1);
+    seg(ctx, cx, cy - R - 6, cx, cy + R + 6, c.line, 1);
+    ctx.strokeStyle = c.line; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.arc(cx, cy, R, 0, 2 * Math.PI); ctx.stroke();
+    // angle ω between input and delayed arrows
+    var ang = Math.atan2(a[1], a[0]);
+    ctx.strokeStyle = c.acc2; ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.arc(cx, cy, R * 0.28, -ang, -ang + om, false); ctx.stroke();
+    var mid = ang - om / 2;
+    label(ctx, "ω", cx + Math.cos(mid) * R * 0.4, cy - Math.sin(mid) * R * 0.4 + 4, c.acc2, MONO, "center");
+    // dashed chord between the two tips
+    ctx.save(); ctx.setLineDash([4, 3]);
+    seg(ctx, PX(a), PY(a), PX(b), PY(b), c.muted, 1);
+    ctx.restore();
+    arrow(ctx, cx, cy, PX(b), PY(b), c.acc2, 2);
+    arrow(ctx, cx, cy, PX(a), PY(a), c.ink, 2);
+    arrow(ctx, cx, cy, PX(o), PY(o), c.acc, 3.2);
+    label(ctx, "spins +ω per sample", 0, 14, c.muted);
+
+    // wave plot: tip heights over the last WIN samples, newest at the right edge
+    var x0 = cx + R + 34, x1 = w - 10;
+    if (x1 - x0 < 60) return;
+    var narrow = x1 - x0 < 260, WIN = narrow ? 10 : ROT.WIN;
+    var dx = (x1 - x0) / WIN;
+    function WX(tt) { return x1 - (t - tt) * dx; }
+    function yIn(tt) { return Math.sin(om * tt); }
+    function yDel(tt) { return Math.sin(om * (tt - 1)); }
+    function yOut(tt) { return 0.5 * yIn(tt) + s * 0.5 * yDel(tt); }
+    seg(ctx, x0, cy, x1, cy, c.line, 1);
+    var t0 = t - WIN;
+    curve(ctx, t0, t, 0.05, WX, function (tt) { return cy - yDel(tt) * R; }, c.acc2, 1, 0.45);
+    curve(ctx, t0, t, 0.05, WX, function (tt) { return cy - yIn(tt) * R; }, c.ink, 1, 0.45);
+    curve(ctx, t0, t, 0.05, WX, function (tt) { return cy - yOut(tt) * R; }, c.acc, 1.5, 0.7);
+    for (var n = Math.ceil(t0); n <= Math.floor(t + 1e-9); n++) {
+      dot(ctx, WX(n), cy - yDel(n) * R, 2.3, c.acc2);
+      dot(ctx, WX(n), cy - yIn(n) * R, 2.3, c.ink);
+      dot(ctx, WX(n), cy - yOut(n) * R, 2.8, c.acc);
+    }
+    // tie each tip to its wave with a dashed line at the same height
+    ctx.save(); ctx.setLineDash([2, 4]);
+    [[b, c.acc2], [a, c.ink], [o, c.acc]].forEach(function (q) { seg(ctx, PX(q[0]), PY(q[0]), x1, PY(q[0]), q[1], 1); });
+    ctx.restore();
+    label(ctx, narrow ? "tip heights" : "height of each tip, sample by sample", x0, 14, c.muted);
+    label(ctx, "now", x1, h - 4, c.muted, MONO, "right");
+  }
+  function rotTick(ts) {
+    if (!ROT.playing) return;
+    if (ROT.last) ROT.t += Math.min(0.1, (ts - ROT.last) / 1000) * ROT.RATE;
+    ROT.last = ts;
+    drawRot();
+    requestAnimationFrame(rotTick);
+  }
+  function rotSetPlaying(on) {
+    ROT.playing = on; ROT.last = 0;
+    $("rotPlay").textContent = on ? "⏸ Pause" : "▶ Spin";
+    if (on) requestAnimationFrame(rotTick);
   }
 
   /* ---------- Figure: phasors ---------- */
@@ -607,7 +787,13 @@ svg.diagram { display: block; width: 100%; min-width: 560px; height: auto; }
   function drawPhasor(cv, co, names, om, col, title, c) {
     if (!cv.clientWidth) return;
     var p = prep(cv), ctx = p.ctx, w = p.w, h = p.h;
-    var R = Math.max(1, co.reduce(function (s, v) { return s + Math.abs(v); }, 0)) * 1.1;
+    // Zoom to fit this frequency's tip-to-tail path; the dashed unit circle keeps sizes comparable.
+    var R = 1, px = 0, py = 0;
+    for (var m = 0; m < co.length; m++) {
+      px += co[m] * Math.cos(-m * om); py += co[m] * Math.sin(-m * om);
+      R = Math.max(R, Math.hypot(px, py));
+    }
+    R *= 1.15;
     var cx = w / 2, cy = h / 2 + 10, sc = (Math.min(w, h - 20) / 2 - 12) / R;
     seg(ctx, cx - R * sc, cy, cx + R * sc, cy, c.line, 1);
     seg(ctx, cx, cy - R * sc, cx, cy + R * sc, c.line, 1);
@@ -661,7 +847,8 @@ svg.diagram { display: block; width: 100%; min-width: 560px; height: auto; }
     $("phGainK").textContent = fb ? "Gain = weights ÷ feedback" : "Gain = weights total";
     $("phGain").textContent = "×" + num(g, 3) + " · " + dbStr(g);
 
-    var rp = prep($("phResp")), rc = rp.ctx, x0 = 40, x1 = rp.w - 12, y0 = 10, y1 = rp.h - 24;
+    var rp = prep($("phResp")), rc = rp.ctx, x0 = 56, x1 = rp.w - 12, y0 = 10, y1 = rp.h - 40;
+    yTitle(rc, "gain (dB)", y0, y1, c);
     var DMAX = 15, DMIN = -36;
     function DY(d) { return y1 - (Math.max(DMIN, Math.min(DMAX, d)) - DMIN) / (DMAX - DMIN) * (y1 - y0); }
     freqTicks(rc, x0, x1, y0, y1, c);
@@ -686,7 +873,6 @@ svg.diagram { display: block; width: 100%; min-width: 560px; height: auto; }
   /* ---------- Figure: matrix factorization ---------- */
   function drawMatrix() {
     var n = 8, s = "";
-    var b = [0.25, 0.5, 0.25];
     function cell(x, y, size, cls, op) {
       s += '<rect x="' + x + '" y="' + y + '" width="' + size + '" height="' + size + '" class="' + cls + '"' +
         (op === undefined ? "" : ' fill-opacity="' + op.toFixed(2) + '"') + "/>";
@@ -714,8 +900,7 @@ svg.diagram { display: block; width: 100%; min-width: 560px; height: auto; }
           cell(blk.x + j * ms, my + i * ms, ms, "m-w", 0.15 + 0.7 * (0.5 + 0.5 * Math.cos(2 * Math.PI * i * j / n)));
         } else if (i === j) {
           var om = 2 * Math.PI * Math.min(i, n - i) / n;
-          var H = Math.abs(b[0] + b[1] * Math.cos(om) + b[2] * Math.cos(2 * om)); // |H| for this symmetric filter
-          H = Math.pow(Math.cos(om / 2), 2);
+          var H = Math.pow(Math.cos(om / 2), 2); // |H| of the ¼ ½ ¼ smoother
           cell(blk.x + j * ms, my + i * ms, ms, "m-a", Math.max(0.06, H));
         } else cell(blk.x + j * ms, my + i * ms, ms, "m-0");
       }
@@ -723,7 +908,6 @@ svg.diagram { display: block; width: 100%; min-width: 560px; height: auto; }
       text(blk.x + n * ms / 2, my + n * ms + 20, "d-small", blk.sub, "middle");
       if (bi < 2) text(blk.x + n * ms + 9, 128, "d-text", "·", "middle");
     });
-    text(560, 128, "d-text", "", "middle");
     $("matSvg").innerHTML = s;
   }
 
@@ -738,8 +922,9 @@ svg.diagram { display: block; width: 100%; min-width: 560px; height: auto; }
         var fk = f0 * k; if (fk > 9000) break;
         var a = amp * Math.pow(1 / k, 0.9) * (k === 1 ? 0.7 : 1);
         var g = Math.exp(-(1.5 + 0.8 * k) / FS), w = 2 * Math.PI * fk / FS, ph = k * 1.7, env = a;
+        var ramp = 0.003 * FS; // 3 ms pick attack instead of an instant step
         for (var n = n0; n < SIG_LEN; n++) {
-          x[n] += env * Math.sin(w * (n - n0) + ph);
+          x[n] += env * Math.min(1, (n - n0) / ramp) * Math.sin(w * (n - n0) + ph);
           env *= g; if (env < 1e-5) break;
         }
       }
@@ -795,7 +980,7 @@ svg.diagram { display: block; width: 100%; min-width: 560px; height: auto; }
     return [parseInt(hex.slice(0, 2), 16), parseInt(hex.slice(2, 4), 16), parseInt(hex.slice(4, 6), 16)];
   }
   function mix(a, b, t) { return [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t]; }
-  var RANGE = 70;
+  var RANGE = 55;
   function drawSpec() {
     if (!SP.sig || !$("specCanvas").clientWidth) return;
     var N = +$("spWin").value, S = spectro(N), c = colors();
@@ -874,7 +1059,10 @@ svg.diagram { display: block; width: 100%; min-width: 560px; height: auto; }
   }
 
   /* ---------- wiring ---------- */
-  function drawAll() { drawSup(); drawTwo(); drawPh(); drawMatrix(); drawSpec(); }
+  function drawAll() { drawSup(); drawTwo(); drawRot(); drawPh(); drawMatrix(); drawSpec(); }
+  ["rotMode", "rotFreq"].forEach(function (id) { $(id).addEventListener("input", drawRot); });
+  $("rotPlay").addEventListener("click", function () { rotSetPlaying(!ROT.playing); });
+  $("rotStep").addEventListener("click", function () { rotSetPlaying(false); ROT.t = Math.floor(ROT.t + 1e-6) + 1; drawRot(); });
   $("supN").addEventListener("input", drawSup);
   ["twMode", "twFreq"].forEach(function (id) { $(id).addEventListener("input", drawTwo); });
   ["phPreset", "phFreq", "phB0", "phB1", "phB2"].forEach(function (id) { $(id).addEventListener("input", drawPh); });

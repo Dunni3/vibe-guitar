@@ -23,7 +23,9 @@ After=network.target
 Type=simple
 User=%i
 WorkingDirectory=/home/%i/vibe-guitar
-ExecStart=/home/%i/vibe-guitar/.venv/bin/fx-web --host 0.0.0.0 --port 8080 --engine fake
+# --live-source auto: the engine's tap when it's running, else the simulation.
+# For the USB interface instead: --live-source alsa:plughw:CARD=<name>,DEV=0:2
+ExecStart=/home/%i/vibe-guitar/.venv/bin/fx-web --host 0.0.0.0 --port 8080 --engine fake --live-source auto
 Restart=on-failure
 RestartSec=2
 

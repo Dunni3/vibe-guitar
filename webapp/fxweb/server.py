@@ -10,14 +10,17 @@
     POST   /api/engine/load          {"preset_id": "x"} or {"preset": {...}, "preset_id": "x"?}
                                      (the second form auditions unsaved edits)
     GET    /api/health               buffer, latency, DSP load, xruns, CPU temp
+    /api/live/..., /api/recordings/...   live analysis + recording (fxweb/live/api.py)
 
 Control latency doesn't matter here, so it's plain request/response; the UI
-polls /api/health every couple of seconds while it's visible.
+polls /api/health every couple of seconds while it's visible. The one stream
+is the Live page's analysis frames (Server-Sent Events).
 """
 
 from __future__ import annotations
 
 import argparse
+import contextlib
 import functools
 from pathlib import Path
 from typing import Any
@@ -28,11 +31,24 @@ from fastapi.staticfiles import StaticFiles
 
 from .catalog import REPO_ROOT, CatalogError, cpp_check_text, find_fxrender, load_catalog
 from .engine import Engine, LoadedPreset, make_engine
+from .live.api import add_live_routes
+from .live.hub import LiveHub
+from .live.recordings import RecordingStore
+from .live.sources import TapSource
+from .live.tap import default_tap_path
 from .presets import PresetError, PresetStore, parse_json
 
 STATIC_DIR = Path(__file__).parent / "static"
 DEFAULT_PRESETS = REPO_ROOT / "presets"
+DEFAULT_RECORDINGS = REPO_ROOT / "recordings"
 INITIAL_PRESET = "clean"
+
+
+def _preset_info(lp: LoadedPreset | None) -> dict | None:
+    """What was loaded when a take was recorded, saved in its metadata."""
+    if lp is None:
+        return None
+    return _loaded_dict(lp) | {"preset": lp.preset}
 
 
 def _loaded_dict(lp: LoadedPreset | None) -> dict | None:
@@ -42,15 +58,33 @@ def _loaded_dict(lp: LoadedPreset | None) -> dict | None:
 
 
 def create_app(
-    store: PresetStore, engine: Engine, initial_preset: str | None = INITIAL_PRESET
+    store: PresetStore, engine: Engine, initial_preset: str | None = INITIAL_PRESET,
+    live: LiveHub | None = None,
 ) -> FastAPI:
-    app = FastAPI(title="Guitar FX Box", docs_url="/api/docs", redoc_url=None, openapi_url="/api/openapi.json")
+    @contextlib.asynccontextmanager
+    async def lifespan(_: FastAPI):
+        yield
+        if live is not None:
+            live.close()  # finishes a take in progress so its file is complete
+
+    app = FastAPI(title="Guitar FX Box", docs_url="/api/docs", redoc_url=None,
+                  openapi_url="/api/openapi.json", lifespan=lifespan)
     app.state.store = store
     app.state.engine = engine
+    app.state.live = live
+
+    def load(preset: dict, preset_id: str | None, modified: bool = False) -> LoadedPreset:
+        lp = engine.load(preset, preset_id, modified=modified)
+        if live is not None:
+            live.set_preset(lp.preset)
+        return lp
+
+    if live is not None:
+        live.preset_info = lambda: _preset_info(engine.loaded())
 
     if initial_preset and store.exists(initial_preset):
         try:
-            engine.load(store.get(initial_preset), initial_preset)
+            load(store.get(initial_preset), initial_preset)
         except PresetError:
             pass
 
@@ -109,7 +143,7 @@ def create_app(
         lp = engine.loaded()
         reloaded = lp is not None and lp.id == preset_id
         if reloaded:
-            engine.load(saved, preset_id)
+            load(saved, preset_id)
         return {"id": preset_id, "preset": saved, "reloaded": reloaded}
 
     @app.delete("/api/presets/{preset_id}")
@@ -133,9 +167,9 @@ def create_app(
         if preset_id is not None and not isinstance(preset_id, str):
             raise PresetError("'preset_id' must be a string")
         if "preset" in body:
-            lp = engine.load(store.parse_obj(body["preset"]), preset_id, modified=True)
+            lp = load(store.parse_obj(body["preset"]), preset_id, modified=True)
         elif preset_id:
-            lp = engine.load(get_or_404(preset_id), preset_id)
+            lp = load(get_or_404(preset_id), preset_id)
         else:
             raise PresetError("give 'preset_id' or 'preset'")
         return {"engine": engine.name, "loaded": _loaded_dict(lp)}
@@ -144,18 +178,49 @@ def create_app(
     async def health():
         return engine.health().to_dict()
 
+    if live is not None:
+        add_live_routes(app, live, body_json)
+
+    explainers = REPO_ROOT / "explainers"
+    if explainers.is_dir():  # the concept pages, readable on the phone with no internet
+        app.mount("/explainers", StaticFiles(directory=explainers, html=True), name="explainers")
     app.mount("/", StaticFiles(directory=STATIC_DIR, html=True), name="ui")
     return app
 
 
+def pick_live_source(requested: str, tap_path: Path) -> str:
+    """'auto': the engine's tap if something is writing to it, else the simulation."""
+    if requested != "auto":
+        return requested
+    if tap_path.exists():
+        src = TapSource(tap_path)
+        try:
+            src.open()
+            if src.read(timeout=0.3) is not None:
+                return f"tap:{tap_path}"
+        except Exception:
+            pass
+        finally:
+            src.close()
+    return "sim"
+
+
 def build_default_app(
-    presets_dir: Path = DEFAULT_PRESETS, fxrender: str | None = None, engine: str = "fake"
+    presets_dir: Path = DEFAULT_PRESETS, fxrender: str | None = None, engine: str = "fake",
+    live_source: str | None = "auto", recordings_dir: Path = DEFAULT_RECORDINGS,
+    tap_path: Path | None = None, retro_seconds: float = 90.0, mains_hz: float = 60.0,
 ) -> FastAPI:
     exe = find_fxrender(fxrender)
     store = PresetStore(
         presets_dir, load_catalog(exe), cpp_check=functools.partial(cpp_check_text, exe)
     )
-    return create_app(store, make_engine(engine))
+    hub = None
+    if live_source:
+        tap = tap_path or default_tap_path()
+        hub = LiveHub(RecordingStore(recordings_dir), fxrender=exe, tap_path=tap,
+                      retro_seconds=retro_seconds, mains_hz=mains_hz)
+        hub.start(pick_live_source(live_source, tap))
+    return create_app(store, make_engine(engine), live=hub)
 
 
 def main(argv: list[str] | None = None) -> None:
@@ -165,16 +230,31 @@ def main(argv: list[str] | None = None) -> None:
     ap.add_argument("--presets", type=Path, default=DEFAULT_PRESETS, help="preset directory")
     ap.add_argument("--fxrender", help="path to fxrender (default build/fxrender, or $FX_FXRENDER)")
     ap.add_argument("--engine", default="fake", help="engine backend (default: fake)")
+    ap.add_argument("--live-source", default="auto",
+                    help="live signal: auto (engine tap if running, else sim), sim, tap[:PATH], "
+                         "alsa:DEVICE[:CHANNELS], or none to turn the Live page off")
+    ap.add_argument("--tap", type=Path, help=f"engine tap file (default {default_tap_path()})")
+    ap.add_argument("--recordings", type=Path, default=DEFAULT_RECORDINGS, help="where takes are saved")
+    ap.add_argument("--retro-seconds", type=float, default=90.0,
+                    help="how much of the live signal to keep in memory for 'save last N s' (default 90)")
+    ap.add_argument("--mains-hz", type=float, default=60.0, choices=[50.0, 60.0],
+                    help="mains frequency for the hum meter (default 60)")
     args = ap.parse_args(argv)
 
     try:
-        app = build_default_app(args.presets, args.fxrender, args.engine)
+        app = build_default_app(
+            args.presets, args.fxrender, args.engine,
+            live_source=None if args.live_source == "none" else args.live_source,
+            recordings_dir=args.recordings, tap_path=args.tap, retro_seconds=args.retro_seconds,
+            mains_hz=args.mains_hz)
     except (CatalogError, ValueError) as e:
         raise SystemExit(f"fx-web: {e}") from None
 
     import uvicorn
 
-    print(f"fx-web: serving on http://{args.host}:{args.port}  (engine: {args.engine})", flush=True)
+    live = app.state.live
+    src = live.source_status()["spec"].get("kind", "?") if live else "off"
+    print(f"fx-web: serving on http://{args.host}:{args.port}  (engine: {args.engine}, live: {src})", flush=True)
     uvicorn.run(app, host=args.host, port=args.port, log_level="warning", access_log=False)
 
 

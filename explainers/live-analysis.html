@@ -1,0 +1,850 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Live Signal Analysis</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;700;800&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;1,400&display=swap" rel="stylesheet">
+<style>
+/* Layout idea: a lab notebook. Left-aligned prose column, wide figure panels that run live,
+   signal amber = audio path, teal = the reader / analysis side, red = dropped or clipped. */
+:root {
+  --bg: #eef0f3;
+  --panel: #ffffff;
+  --ink: #1a2130;
+  --mute: #5a6375;
+  --rule: #d6dbe3;
+  --signal: #c25e00;
+  --control: #0b7c84;
+  --p2: #6b4fe0;
+  --p3: #b0336f;
+  --bad: #c62f2f;
+  --good: #2f8a49;
+  --display: "Archivo", "Helvetica Neue", Arial, sans-serif;
+  --body: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #10141b;
+    --panel: #171d27;
+    --ink: #e6e9ef;
+    --mute: #98a1b3;
+    --rule: #2a3242;
+    --signal: #f29b38;
+    --control: #42c3cb;
+    --p2: #a891ff;
+    --p3: #ef7fb5;
+    --bad: #ff6b6b;
+    --good: #6cc784;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #10141b;
+  --panel: #171d27;
+  --ink: #e6e9ef;
+  --mute: #98a1b3;
+  --rule: #2a3242;
+  --signal: #f29b38;
+  --control: #42c3cb;
+  --p2: #a891ff;
+  --p3: #ef7fb5;
+  --bad: #ff6b6b;
+  --good: #6cc784;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body {
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--body);
+  font-size: 17px;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+}
+main {
+  max-width: 1000px;
+  margin: 0 auto;
+  padding: 48px 24px 80px;
+  display: grid;
+  gap: 56px;
+}
+main > * { min-width: 0; }
+@media (max-width: 520px) { main { padding: 28px 16px 60px; gap: 44px; } body { font-size: 16px; } }
+
+h1, h2, h3 { font-family: var(--display); text-wrap: balance; margin: 0; letter-spacing: -0.01em; }
+h1 { font-size: clamp(34px, 6vw, 54px); font-weight: 800; line-height: 1.05; }
+h2 { font-size: clamp(24px, 3.4vw, 32px); font-weight: 700; line-height: 1.15; }
+h3 { font-size: 17px; font-weight: 700; line-height: 1.3; }
+p { margin: 0; max-width: 68ch; }
+.prose { display: grid; gap: 14px; min-width: 0; }
+.prose ul { margin: 0; padding-left: 20px; max-width: 68ch; display: grid; gap: 6px; }
+.lede { font-size: 1.12em; color: var(--ink); max-width: 62ch; }
+.mute { color: var(--mute); }
+.mono { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+code { font-family: var(--mono); font-size: 0.9em; overflow-wrap: anywhere; }
+.kicker {
+  font-family: var(--mono);
+  font-size: 13px;
+  color: var(--mute);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  display: flex; gap: 10px; align-items: center;
+}
+.kicker b { color: var(--signal); font-weight: 500; }
+.sig { color: var(--signal); font-weight: 600; }
+.ctl { color: var(--control); font-weight: 600; }
+.badc { color: var(--bad); font-weight: 600; }
+.term { font-weight: 600; }
+.eq {
+  font-family: var(--mono); font-size: 14.5px; background: var(--panel); border: 1px solid var(--rule);
+  border-left: 3px solid var(--p2); border-radius: 8px; padding: 10px 14px; max-width: 68ch;
+  overflow-x: auto; white-space: pre; line-height: 1.55;
+}
+
+header { display: grid; gap: 18px; }
+.two-up {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 8px; max-width: 820px;
+}
+@media (max-width: 640px) { .two-up { grid-template-columns: 1fr; } }
+.def {
+  background: var(--panel);
+  border: 1px solid var(--rule);
+  border-radius: 10px;
+  padding: 16px 18px;
+  display: grid; gap: 6px;
+}
+.def.a { border-top: 3px solid var(--signal); }
+.def.c { border-top: 3px solid var(--control); }
+.def .big { font-family: var(--mono); font-size: 20px; font-weight: 500; }
+
+section { display: grid; gap: 20px; min-width: 0; }
+.fig {
+  background: var(--panel);
+  border: 1px solid var(--rule);
+  border-radius: 12px;
+  padding: 16px;
+  display: grid;
+  gap: 14px;
+  min-width: 0;
+}
+.fig canvas { width: 100%; display: block; }
+.controls { display: flex; flex-wrap: wrap; gap: 12px 22px; align-items: center; }
+.ctrl { display: flex; align-items: center; gap: 10px; font-size: 14px; color: var(--mute); flex-wrap: wrap; }
+.ctrl label { white-space: nowrap; }
+.ctrl output { font-family: var(--mono); color: var(--ink); min-width: 6ch; font-variant-numeric: tabular-nums; }
+input[type=range] { accent-color: var(--signal); width: 180px; }
+@media (max-width: 520px) { input[type=range] { width: 130px; } }
+.seg { display: inline-flex; border: 1px solid var(--rule); border-radius: 8px; overflow: hidden; }
+.seg button {
+  font: 500 13px var(--mono); color: var(--ink); background: transparent;
+  border: 0; padding: 7px 11px; cursor: pointer; border-right: 1px solid var(--rule);
+}
+.seg button:last-child { border-right: 0; }
+.seg button[aria-pressed="true"] { background: var(--ink); color: var(--panel); }
+.btn {
+  font: 600 14px var(--body); color: var(--ink); background: var(--bg);
+  border: 1px solid var(--rule); border-radius: 8px; padding: 8px 14px; cursor: pointer;
+}
+.btn:hover { border-color: var(--mute); }
+.toggle { display: inline-flex; align-items: center; gap: 8px; font-size: 14px; color: var(--ink); cursor: pointer; }
+.toggle input { accent-color: var(--control); width: 16px; height: 16px; }
+button:focus-visible, input:focus-visible { outline: 2px solid var(--control); outline-offset: 2px; }
+.readouts { display: flex; flex-wrap: wrap; gap: 10px 28px; font-size: 14px; color: var(--mute); }
+.readouts b { font-family: var(--mono); font-weight: 500; color: var(--ink); font-variant-numeric: tabular-nums; }
+.caption { font-size: 14px; color: var(--mute); max-width: 80ch; }
+
+.panels { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 14px; }
+.card {
+  background: var(--panel); border: 1px solid var(--rule); border-radius: 10px;
+  padding: 16px 18px; display: grid; gap: 8px; align-content: start; border-left: 4px solid var(--signal);
+}
+.card.c { border-left-color: var(--control); }
+.card.b { border-left-color: var(--bad); }
+.card.g { border-left-color: var(--good); }
+.card.v { border-left-color: var(--p2); }
+.card .from { font-size: 13px; font-family: var(--mono); color: var(--mute); }
+.card p { font-size: 15px; }
+.aside {
+  border: 1px dashed var(--rule); border-radius: 10px; padding: 14px 18px; font-size: 15px; color: var(--mute);
+  max-width: 80ch;
+}
+.aside strong { color: var(--ink); }
+footer { font-size: 13px; color: var(--mute); max-width: 80ch; }
+</style>
+</head>
+<body>
+<main>
+
+<header>
+  <div class="kicker">Guitar FX box · design notes</div>
+  <h1>What the Live page is looking at</h1>
+  <p class="lede">The web app's Live page shows what the box hears and plays, about 30 times a second: levels, a spectrum, the note you're playing, a chord guess, the beat, the noise floor, and how the output compares with the input. It can also record. This page explains each panel, the math behind it, and why none of it can make the audio click.</p>
+  <div class="two-up">
+    <div class="def a">
+      <div class="kicker"><b>Audio side</b></div>
+      <div class="big">callback → tap ring</div>
+      <p class="mute" style="font-size:15px">The engine's audio callback copies every input and output sample into a shared-memory ring. That copy is a few hundred bytes per block, takes no locks, and never waits for anyone.</p>
+    </div>
+    <div class="def c">
+      <div class="kicker"><b style="color:var(--control)">Analysis side</b></div>
+      <div class="big">ring → history → phone</div>
+      <p class="mute" style="font-size:15px">The web server reads the ring at low priority, keeps 90 s of history, and computes analysis frames only while someone has the Live page open.</p>
+    </div>
+  </div>
+</header>
+
+<section id="tap">
+  <div class="prose">
+    <div class="kicker">01 · The data path</div>
+    <h2>A ring the audio thread writes and never waits on</h2>
+    <p>The audio <span class="term">callback</span> is the function the audio server (JACK) calls once per buffer, with a hard deadline. Anything that might block it (a lock, a memory allocation, a disk write) risks a <span class="term">click</span>: an audible gap where a buffer wasn't ready in time. So the analysis can't be done there, and the callback can't hand data over in any way that waits.</p>
+    <p>The handover is the <span class="term">tap</span>: a file in <code>/dev/shm/fxbox-tap</code> (shared memory, so it lives in RAM and never touches the SD card) holding a ring of 2<sup>18</sup> frames, about 4 s at 48 kHz. A <span class="term">frame</span> is one sample per channel (for example "in" and "out"). The C++ engine writes each block into the ring and then publishes a counter, <code>write_pos</code>, the total frames ever written. The data lives at <code>pos % capacity</code>, so the newest block overwrites the oldest.</p>
+    <ul>
+      <li>The <span class="sig">writer</span> (audio thread) is <span class="term">wait-free</span>: a bounded copy and one atomic store, with no allocation and no system calls. It doesn't know whether anyone is reading.</li>
+      <li>The <span class="ctl">reader</span> (a thread in the web server, which runs <span class="term">niced</span>, that is, at lower scheduling priority) keeps its own position. Each pass it copies everything between its position and <code>write_pos</code> into a 90 s in-memory history.</li>
+      <li>If the reader falls more than a full ring behind, the frames it missed are gone. It jumps forward to near the oldest frame still in the ring (keeping 1/8 of a ring as a safety margin) and adds the gap to a <span class="badc">dropped</span> counter. After copying it re-reads <code>write_pos</code> and throws away anything the writer lapped mid-copy, counting that too. The analysis has a hole; the audio is untouched.</li>
+    </ul>
+    <p>On top of the history, an analysis thread builds one JSON frame about every 33 ms and pushes it to the phone over <span class="term">Server-Sent Events</span> (SSE: one long HTTP response the server keeps appending lines to). With nobody watching, it does nothing.</p>
+  </div>
+  <div class="fig">
+    <canvas id="cvTap" height="300" role="img" aria-label="Animated ring buffer with a writer head that advances steadily and a reader head that follows; with the slow reader option the writer laps the reader and a dropped-frames counter rises."></canvas>
+    <div class="controls">
+      <label class="toggle"><input type="checkbox" id="slowTap"> Slow reader (web server busy)</label>
+      <button type="button" class="btn" id="resetTap">Reset counter</button>
+    </div>
+    <div class="readouts">
+      <span>Reader behind <b id="tapLag">0 ms</b></span>
+      <span>Dropped <b id="tapDrop">0</b> frames</span>
+      <span>Audio thread waited <b>0 times</b></span>
+    </div>
+    <p class="caption">The ring is drawn as 32 slots, each 1/32 of the real 4 s ring (8192 frames, about 170 ms), and time runs about twice as fast as real. The amber head writes at the audio rate no matter what. The teal reader normally drains in bursts and stays close. Tick "slow reader" and it gets so far behind that the writer laps it: those blocks are overwritten before they were read and count as dropped. The writer never slows down.</p>
+  </div>
+</section>
+
+<section id="levels">
+  <div class="prose">
+    <div class="kicker">02 · Levels, noise floor, hum</div>
+    <h2>How loud, how close to the ceiling, how quiet underneath</h2>
+    <p>Samples are floats between −1 and +1. Full scale (±1) is the most the converter can represent; anything beyond is flattened, which is <span class="term">clipping</span> and sounds like harsh crackle. Levels are shown in <span class="term">dBFS</span>, decibels relative to full scale:</p>
+    <div class="eq">level_dBFS = 20 · log10(|x|)        0 dBFS = full scale
+−6 dBFS ≈ half full scale    −20 dBFS = one tenth</div>
+    <p>Each analysis frame looks at the samples that arrived since the previous frame (about 1600 per channel) and reports two numbers per channel:</p>
+    <ul>
+      <li><span class="term">Peak</span>: the largest |x|. This is what clips. A frame counts as clipped when any |x| ≥ 0.999.</li>
+      <li><span class="term">RMS</span> (root mean square, √mean(x²)): the average power, closer to how loud it sounds. A pure sine's RMS sits 3 dB below its peak; a plucked string sits much further below, because each pluck starts with a sharp spike. That gap is the <span class="term">crest factor</span>, which the page also shows.</li>
+    </ul>
+    <p>Set the Pisound's gain knob so that your hardest strums peak between <span class="mono">−12</span> and <span class="mono">−6 dBFS</span>. Higher leaves no room for a surprise; much lower wastes the converter's resolution and lifts the relative noise.</p>
+  </div>
+  <div class="panels">
+    <div class="card c">
+      <div class="from">noise floor</div>
+      <h3>The 5th percentile of frame RMS over 60 s</h3>
+      <p>Every frame's input RMS goes into a one-minute history. The quietest 5% of that history is the noise floor: what's left when you aren't playing (preamp hiss, pickup noise, the room). A percentile rather than the minimum, so one freak silent frame doesn't set it. Below −52 dBFS the guitar counts as "quiet" and pitch, chords and onsets are switched off.</p>
+    </div>
+    <div class="card b">
+      <div class="from">hum</div>
+      <h3>60, 120 and 180 Hz, measured only while quiet</h3>
+      <p>Mains electricity alternates at 60 Hz (in North America), and bad grounding leaks it into audio at 60 Hz and its multiples. The open low E string's partials sit near 82, 165 Hz, close enough to confuse things, so hum is measured only when the RMS is within 6 dB of the noise floor. It's flagged when it stands 12 dB above the surrounding 40–400 Hz spectrum.</p>
+    </div>
+    <div class="card v">
+      <div class="from">brightness</div>
+      <h3>Spectral centroid</h3>
+      <p>The magnitude-weighted mean frequency above 50 Hz, Σ f·|X(f)| ÷ Σ |X(f)|: the "centre of mass" of the spectrum. Picking near the bridge or with a thin pick moves it up; picking near the neck or with the thumb moves it down.</p>
+    </div>
+  </div>
+</section>
+
+<section id="spectrum">
+  <div class="prose">
+    <div class="kicker">03 · Spectrum and spectrogram</div>
+    <h2>Which frequencies are present, at a price in time</h2>
+    <p>A <span class="term">spectrum</span> splits the last stretch of signal into how much energy sits at each frequency. Every frame takes the latest <span class="mono">N = 8192</span> samples of each channel, multiplies them by a <span class="term">Hann window</span> (a smooth bump that fades the ends to zero, so the cut edges don't splatter fake energy across all frequencies), and runs an FFT (fast Fourier transform):</p>
+    <div class="eq">X[k] = Σₙ w[n] · x[n] · e^(−2πi·k·n/N)     k = 0 … N/2
+bin spacing  Δf = fs / N = 48000 / 8192 ≈ 5.9 Hz
+window       T  = N / fs = 8192 / 48000 ≈ 171 ms     Δf · T = 1</div>
+    <p>The last line is the catch. The resolution in frequency is the reciprocal of the stretch of time you look at. You can't have 1 Hz bins and 10 ms timing from one FFT; it's the same uncertainty relation as a Gaussian's width versus its Fourier transform's width. A note on the low E string (82.4 Hz) and the F one fret up (87.3 Hz) are 4.9 Hz apart. With a Hann window, two equal tones show as separate peaks only when they're about two bins apart or more, so 8192 points (0.84 bins apart) blur them into one lump; it takes 32768 points, a 0.68 s window, to show two peaks. That's why the tuner doesn't read pitch off the spectrum (section 04), and why the chord guess (section 05) leans on the higher partials, where a semitone is many bins wide.</p>
+    <p>The magnitudes are scaled by 2 / Σw, so a full-scale sine reads 0 dBFS, then mapped onto <span class="mono">240</span> log-spaced display bins from 30 Hz to 16 kHz (each about 2.7% wider than the last, so every octave gets the same width on screen, as your ear hears it). At the top, one display bin covers many FFT bins and takes their maximum; at the bottom, display bins are narrower than FFT bins and are interpolated. The <span class="term">spectrogram</span> stacks those spectra over the last 20 s, time across and frequency up, with brightness for level: a pluck is a bright vertical streak that fades upward first, because high partials die faster.</p>
+  </div>
+  <div class="fig">
+    <canvas id="cvFFT" height="300" role="img" aria-label="Spectrum of two tones at 82 and 87 hertz plus a click, for a selectable FFT size; small sizes blur the tones together, large ones separate them but spread the click over a longer window."></canvas>
+    <div class="controls">
+      <div class="ctrl"><label for="nFFT">FFT size</label><input type="range" id="nFFT" min="9" max="15" step="1" value="13"><output id="nFFTo">8192</output></div>
+      <label class="toggle"><input type="checkbox" id="clickFFT" checked> Click in the window</label>
+    </div>
+    <div class="readouts">
+      <span>Window <b id="fftT">171 ms</b></span>
+      <span>Bin spacing <b id="fftDf">5.86 Hz</b></span>
+      <span>Tones apart <b id="fftSep">0.84 bins</b></span>
+    </div>
+    <p class="caption">Two tones, 82 Hz (E2) and 87 Hz (F2), and a short click at the middle of the window. The curve is the windowed spectrum; dots are the FFT bins actually computed. The bar on top shows how much time the window spans (out of 800 ms). Small FFTs place the click precisely in time but merge the tones into one lump; large ones split the tones but smear the click over more than half a second. The click's energy is spread over every frequency, so it lifts the floor everywhere, more at small sizes where it's a bigger share of the window.</p>
+  </div>
+</section>
+
+<section id="pitch">
+  <div class="prose">
+    <div class="kicker">04 · Tuner: pitch by YIN</div>
+    <h2>Find the period, not the loudest peak</h2>
+    <p>The <span class="term">pitch</span> of a note is set by its <span class="term">fundamental frequency</span> f₀, the rate at which the whole waveform repeats. A string also vibrates at 2f₀, 3f₀, 4f₀… (its <span class="term">partials</span> or <span class="term">harmonics</span>), and on a piezo pickup the fundamental is often not the loudest of them. So "biggest FFT peak" gives octave errors, and the FFT's 5.9 Hz bins are about 120 cents wide at the low E (a <span class="term">cent</span> is 1/100 of a semitone, a frequency ratio of 2<sup>1/1200</sup>). Instead the tuner asks: what shift τ makes the signal line up best with itself? That's <span class="term">YIN</span> (de Cheveigné and Kawahara, 2002), run on the input channel after averaging sample pairs down to 24 kHz, with a window of W = 1024 samples (43 ms) and τ searched over 17…401 samples (1400 Hz down to 60 Hz).</p>
+    <div class="eq">1. difference    d(τ)  = Σ_{j&lt;W} (x[j] − x[j+τ])²
+2. normalise     d'(τ) = d(τ) · τ / Σ_{k=1..τ} d(k),    d'(0) = 1
+3. threshold     first τ with d'(τ) &lt; 0.15, then slide down to its local minimum
+4. refine        fit a parabola through d(τ−1), d(τ), d(τ+1)  →  τ* = τ + shift
+                 f₀ = 24000 / τ*,   confidence = 1 − d'(τ)</div>
+    <p>Step 1 is zero at τ = 0 and dips at every multiple of the period. Expanding the square, d(τ) = e₀ + e_τ − 2r(τ) with r the autocorrelation, so it's computed with FFTs. Step 2 divides by the running mean of d, which removes the trivial dip at τ = 0 and puts every dip on a 0…1 scale. Step 3 takes the <em>first</em> good dip, not the deepest: dips at 2τ, 3τ are often just as deep and would read an octave or a twelfth low. Step 4 matters for accuracy: at 82 Hz the period is about 291 samples, and one whole sample is 6 cents. Interpolating between samples brings it to about a cent.</p>
+    <p>Then two smoothing rules: the reported note is the median of recent estimates, and a jump of more than 0.7 semitone clears that history, so a new note shows at once instead of gliding.</p>
+  </div>
+  <div class="fig">
+    <canvas id="cvYIN" height="290" role="img" aria-label="YIN normalised difference function of a synthetic plucked note, with the 0.15 threshold line and the chosen dip marked, and the estimated frequency printed."></canvas>
+    <div class="controls">
+      <div class="ctrl"><label for="yinF">Note</label><input type="range" id="yinF" min="0" max="1000" step="1" value="196"><output id="yinFo">110.0 Hz</output></div>
+      <div class="ctrl"><label for="yinA">Fundamental level</label><input type="range" id="yinA" min="0" max="100" step="1" value="35"><output id="yinAo">35%</output></div>
+      <div class="ctrl"><label for="yinN">Noise</label><input type="range" id="yinN" min="0" max="100" step="1" value="10"><output id="yinNo">10%</output></div>
+    </div>
+    <div class="readouts">
+      <span>True <b id="yinTrue">110.00 Hz</b></span>
+      <span>YIN <b id="yinEst">-</b></span>
+      <span>Error <b id="yinErr">-</b></span>
+      <span>Note <b id="yinNote">-</b></span>
+    </div>
+    <p class="caption">A synthetic pluck: partials 1–8 with a piezo-like balance (the 2nd and 3rd louder than the fundamental), each decaying, sampled at 24 kHz. The curve is d'(τ), the dashed line the 0.15 threshold, the dot the dip YIN picks, with the τ axis also labelled in Hz. Turn the fundamental all the way down: the period is still there, so the estimate holds. Add noise and the dips get shallower until none crosses the line; then the tuner shows nothing rather than a wrong note.</p>
+  </div>
+  <div class="aside"><strong>When the tuner refuses.</strong> A chord has a period too: C, E and G share a common period about two octaves below C, a note nobody is playing. So a YIN result is dropped when its pitch class has little energy in the chroma (below 0.4 of the strongest, section 05), and when the chord matcher explains the chroma better than "this one note with its harmonics" does. Harmonics are only shown for a confident estimate (confidence above 0.8).</div>
+</section>
+
+<section id="harmony">
+  <div class="prose">
+    <div class="kicker">05 · Harmonics, chroma, chord guess</div>
+    <h2>Folding the spectrum into twelve notes</h2>
+    <p><strong>Harmonics panel.</strong> Once the tuner has a confident f₀, the page reads the spectrum near f₀, 2f₀ … 10f₀ (the peak within ±3% or ±2 bins of each) and shows each partial in dB relative to the first. This is the "tone colour" of the note. Don't be surprised when partials 2 or 3 sit above 0 dB: a piezo pickup under the saddle senses the string's force on the bridge, not the air, and it often reports overtones louder than the fundamental. That's a big part of why an under-saddle piezo sounds "quacky" next to a mic, and what body-IR correction (section 07) is meant to fix.</p>
+    <p><strong>Chroma.</strong> A <span class="term">pitch class</span> is a note name regardless of octave: every A (55, 110, 220, 440 Hz…) is pitch class A. The chroma panel takes the spectral peaks between 60 Hz and 2 kHz (local maxima within 40 dB of the loudest, so leakage and noise stay out), converts each peak's frequency to the nearest note, and adds √magnitude into one of 12 bins:</p>
+    <div class="eq">pc(f) = round(69 + 12 · log2(f / 440))  mod 12      0 = C, 9 = A
+chroma[pc] += √|X(f)|     then scale so the largest bin is 1,
+                          and smooth: c ← 0.7·c + 0.3·c_new</div>
+    <p><strong>The chord guess.</strong> The chroma vector is compared with templates for 12 roots × 8 chord types (major, minor, 5, 7, maj7, m7, sus2, sus4) by cosine similarity, with small penalties so a 7th chord has to clearly beat the plain triad. Each template includes every chord tone's own harmonics (partials 1–6, weighted 0.6<sup>k−1</sup>), because real strings bring them.</p>
+    <p>Here's the trap. Partial 3 is 3f₀, an octave and a fifth up (19 semitones); partial 5 is two octaves and a major third up (27.9 semitones, which rounds to 28). So a single A already puts energy on A, E and C♯: an A major triad. That's why the code doesn't stop at the best chord. It also scores "one note with its harmonics" for the tuner's pitch class, and if that explains the chroma at least as well (within 0.02), it reports a note, not a chord. Treat the chord name as a guess: open strings ringing, a capo or an unusual voicing all move it.</p>
+  </div>
+  <div class="fig">
+    <canvas id="cvChroma" height="360" role="img" aria-label="Partials of a single note or a chord on a logarithmic frequency axis, each labelled with its pitch class, and below them the twelve chroma bars they fold into."></canvas>
+    <div class="controls">
+      <div class="seg" id="chromaSel" role="group" aria-label="What is played">
+        <button type="button" data-n="a2" aria-pressed="true">One note: A2</button>
+        <button type="button" data-n="c" aria-pressed="false">Chord: open C major</button>
+      </div>
+    </div>
+    <div class="readouts">
+      <span>Best chord <b id="chBest">-</b></span>
+      <span>One note + harmonics <b id="chNote">-</b></span>
+      <span>Reported <b id="chVerdict">-</b></span>
+    </div>
+    <p class="caption">Top: every partial up to 2 kHz, coloured by the string it came from, with its pitch class above. Bottom: the 12 chroma bins they fold into. A2 alone fills A, E and C♯ (plus a little G, B and others from partials 7 and up), and the chord templates find an A major or A5 in it; the single-note template matches it at least as well, so the page shows a note. The open C chord (C3 E3 G3 C4 E4) spreads over C, E and G, and no single note explains that.</p>
+  </div>
+</section>
+
+<section id="onsets">
+  <div class="prose">
+    <div class="kicker">06 · Onsets and tempo</div>
+    <h2>Spotting each pluck, then the beat</h2>
+    <p>An <span class="term">onset</span> is the start of a note: a sudden rise of energy, mostly in the upper partials. The detector uses <span class="term">spectral flux</span>, which asks how much new energy appeared since a moment ago. Every <span class="term">hop</span> of 512 samples (10.7 ms) it takes a 1024-sample Hann-windowed FFT, compresses the magnitudes, and sums only the increases:</p>
+    <div class="eq">S_t[k]  = log(1 + 100 · |X_t[k]|)
+flux_t  = Σ_k max(0, S_t[k] − S_{t−1}[k])        (0 while quiet)
+onset   if flux is a local maximum
+        and flux &gt; 1.5 · median(recent) + 0.1 · mean(recent) + 4
+        and ≥ 60 ms since the last onset</div>
+    <p>The log compression lets a soft pluck register next to a loud one. Counting only increases ignores the decay of a ringing note. The threshold <em>adapts</em>, following the median of the recent flux, so strumming hard doesn't make every hop an onset and fingerpicking softly isn't missed.</p>
+    <p><span class="term">Tempo</span> (in BPM, beats per minute) comes from the flux envelope over the last 8 s. Its <span class="term">autocorrelation</span>, the envelope's correlation with a delayed copy of itself, peaks at lags where the pattern repeats: one beat, two beats, half a beat. Lags are converted to BPM (60 · 93.75 / lag, since there are 93.75 hops per second), restricted to 50–220 BPM, and weighted by a log-normal bump centred on 110 BPM (σ = 0.9 octave). Without that bias, 60 and 120 BPM score almost the same on a steady strum, and the readout flips between them. It's re-estimated once a second, needs at least 8 onsets, and reports nothing if the best peak is weak (under 0.2 of the zero-lag value). A parabola through the peak gives sub-hop precision.</p>
+  </div>
+</section>
+
+<section id="response">
+  <div class="prose">
+    <div class="kicker">07 · Response panel (2+ channels)</div>
+    <h2>What the effect, or the guitar body, does to each frequency</h2>
+    <p>With two channels, say "in" (x) and "out" (y), the page estimates the <span class="term">transfer function</span> H(f): the gain (and phase) that turns x into y at each frequency. For a linear effect like an EQ, y = h * x (convolution with the effect's impulse response h), so Y(f) = H(f) · X(f). Dividing one spectrum by the other frame by frame is noisy, so it uses the <span class="term">H1 estimator</span>, built from averaged spectra:</p>
+    <div class="eq">Sxx = ⟨|X|²⟩    Syy = ⟨|Y|²⟩    Sxy = ⟨X̄ · Y⟩        ⟨·⟩ = average over frames
+H1(f) = Sxy / Sxx
+γ²(f) = |Sxy|² / (Sxx · Syy)          0 ≤ γ² ≤ 1   (coherence)</div>
+    <p>This is least squares: H1 is the per-frequency coefficient that best predicts Y from X, and γ² is the fraction of the output's power that a linear map of the input explains, the per-frequency R² of that regression. Each frame (when the guitar isn't quiet) takes the last 4096 samples of both channels, windows them, and folds |X|², |Y|² and X̄Y into exponential averages with factor 0.93 (memory of about 14 frames, half a second). The panel redraws every 4th frame on 96 log-spaced bins, and greys out frequencies where the input has no energy, since there's nothing to divide by.</p>
+    <p>Coherence is the honesty meter. One frame always gives γ² = 1 (any single pair of numbers is "explained" by their ratio), which is why averaging is essential. Over many frames it drops below 1 whenever y contains something that isn't a fixed linear function of the x <em>in the same window</em>:</p>
+    <ul>
+      <li><strong>Noise</strong> added on the output side (hiss, the room, the other channel's mic picking up the strings directly) is uncorrelated with x.</li>
+      <li><strong>Echoes and reverb</strong>: a copy delayed by D contains input from D seconds before the window began. That part has no partner in this frame's X, so it behaves like noise. Reverb is thousands of echoes with a long tail, so it pulls coherence down a lot. A longer FFT helps, at the usual cost in time.</li>
+      <li><strong>Distortion</strong> creates frequencies the input didn't have; time-varying effects (chorus, a compressor pumping) change H while it's being averaged.</li>
+    </ul>
+    <p>The <span class="term">delay</span> between the channels comes from <span class="term">GCC-PHAT</span> (generalized cross-correlation with phase transform): normalise Sxy to unit magnitude, keeping only its phase, and inverse-FFT it. A pure delay D has phase e^(−2πifD), whose inverse transform is a spike at lag D. Discarding magnitude makes the spike sharp no matter how coloured the signal is. The peak is searched within ±20 ms and refined with a parabola to a fraction of a sample.</p>
+  </div>
+  <div class="fig">
+    <canvas id="cvXfer" height="360" role="img" aria-label="Estimated magnitude response in decibels and coherence versus frequency for white noise passed through a lowpass tone filter or an echo, with sliders for echo level, output noise and number of averaged frames."></canvas>
+    <div class="controls">
+      <div class="seg" id="xferSel" role="group" aria-label="System between input and output">
+        <button type="button" data-n="lp" aria-pressed="true">Tone filter</button>
+        <button type="button" data-n="echo" aria-pressed="false">Echo (5 ms)</button>
+      </div>
+      <div class="ctrl"><label for="xEcho">Echo level</label><input type="range" id="xEcho" min="0" max="100" value="70"><output id="xEchoO">0.70</output></div>
+      <div class="ctrl"><label for="xNoise">Output noise</label><input type="range" id="xNoise" min="0" max="100" value="0"><output id="xNoiseO">0%</output></div>
+      <div class="ctrl"><label for="xAvg">Frames averaged</label><input type="range" id="xAvg" min="0" max="6" value="5"><output id="xAvgO">32</output></div>
+    </div>
+    <div class="readouts">
+      <span>FFT <b>1024 pts, 21 ms</b></span>
+      <span>Mean γ² <b id="xCoh">-</b></span>
+      <span>GCC-PHAT delay <b id="xDel">-</b></span>
+    </div>
+    <p class="caption">White noise in. Top: |H1| in dB (amber) against the true response (dashed). Bottom: coherence γ² (teal). The tone filter is a one-pole lowpass at about 1 kHz: H1 traces it and γ² stays near 1, because it's linear and has a short memory. The echo adds a copy 5 ms (240 samples) later: |H| becomes a comb with notches every 200 Hz, and γ² drops even with no noise at all, because about a quarter of each 21 ms window's echo comes from before the window. Drag "Frames averaged" to 1 and coherence is 1 everywhere: it means nothing without averaging.</p>
+  </div>
+  <div class="aside"><strong>Why this panel exists: body-IR correction.</strong> The plan for M4 is to make the piezo sound like a mic in front of the guitar. Record the pickup on one input and a small-diaphragm condenser mic on the other, both on <em>one</em> interface so they share one sample clock (two separate devices would drift apart by a few samples a minute and smear the average). Then x = pickup, y = mic, and H1 is exactly the filter to fit: the correction that turns piezo into mic. Coherence says where to trust it. Room echoes and the mic hearing the strings directly lower γ², so the fit should weight each frequency by γ², ignore the low-coherence bins, and keep the mic close to cut room reflections. The fitted filter (an impulse response for convolution) is computed on the laptop, and only the cheap convolution runs on the Pi.</div>
+</section>
+
+<section id="recording">
+  <div class="prose">
+    <div class="kicker">08 · Recording</div>
+    <h2>Takes that survive a pulled plug, and "save what I just played"</h2>
+    <p>Recordings come from the same history the analysis reads, so recording also costs the audio thread nothing. Each take is two files in <code>recordings/</code>, named by date and time:</p>
+  </div>
+  <div class="panels">
+    <div class="card">
+      <div class="from">&lt;id&gt;.wav</div>
+      <h3>24-bit PCM, every channel</h3>
+      <p>WAV is a short header followed by raw samples. <span class="term">PCM</span> means each sample is stored as a plain integer, here 24 bits (about 144 dB of range, far beyond the converters' own noise floor). All tap channels are interleaved in one file, so "in" and "out" stay sample-aligned, which is what the response panel and an IR fit need. Stereo costs 48000 × 2 × 3 bytes, about 17 MB a minute. Single channels can be exported on request.</p>
+    </div>
+    <div class="card c">
+      <div class="from">&lt;id&gt;.json</div>
+      <h3>The sidecar</h3>
+      <p>Name and notes, the preset that was loaded, per-channel peak and clip counts, markers (times you tapped "mark" while playing), the number of frames dropped during the take, and a coarse peak overview (one column per 50 ms) so the list can draw a waveform without opening the WAV.</p>
+    </div>
+    <div class="card g">
+      <div class="from">crash safety</div>
+      <h3>The header is patched every second</h3>
+      <p>A WAV header states the data length, which isn't known until the end. A naive writer fills it in on close, so a power cut leaves a file every player rejects. Here a separate writer thread drains a queue (so a slow SD card can't stall anything upstream) and rewrites the two size fields every second. A cut loses at most the last second. On startup, takes still marked "recording" are recovered from whatever reached the disk. A take also stops itself before the SD card drops below 300 MB free.</p>
+    </div>
+    <div class="card v">
+      <div class="from">retroactive</div>
+      <h3>"Save last N s"</h3>
+      <p>The server always keeps the last 90 s in memory. The button copies the last N seconds of that history (up to what's there) straight to a new take: the good version you played before you thought to press record.</p>
+    </div>
+  </div>
+</section>
+
+<footer>Numbers on this page come from <code>webapp/fxweb/live/analysis.py</code>, <code>recordings.py</code>, <code>tap.py</code> and <code>engine/include/fx/tap.h</code>: 48 kHz audio, an 8192-point spectrum, YIN at 24 kHz with a 1024-sample window and threshold 0.15, a 4096-point response estimate, a 4 s tap ring and a 90 s history. The figures recompute everything in your browser from synthetic signals; none of them need the box.</footer>
+
+</main>
+
+<script>
+(() => {
+  const $ = id => document.getElementById(id);
+  const RM = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+  const figs = [], tickers = [];
+
+  // ---- theme tokens
+  let T = {};
+  function readTokens() {
+    const s = getComputedStyle(document.documentElement);
+    for (const k of ['bg','panel','ink','mute','rule','signal','control','p2','p3','bad','good']) T[k] = s.getPropertyValue('--' + k).trim();
+    T.mono = '500 12px "IBM Plex Mono", ui-monospace, monospace';
+    T.monoS = '400 11px "IBM Plex Mono", ui-monospace, monospace';
+    T.sans = '600 13px "IBM Plex Sans", system-ui, sans-serif';
+  }
+  readTokens();
+  const redrawAll = () => { readTokens(); figs.forEach(f => f.draw()); };
+  new MutationObserver(redrawAll).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+  matchMedia('(prefers-color-scheme: dark)').addEventListener('change', redrawAll);
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(redrawAll);
+
+  function alpha(hex, a) {
+    if (!hex.startsWith('#')) return hex;
+    let h = hex.slice(1); if (h.length === 3) h = h.split('').map(c => c + c).join('');
+    const n = parseInt(h, 16);
+    return `rgba(${n >> 16 & 255},${n >> 8 & 255},${n & 255},${a})`;
+  }
+
+  function canvasFig(cv, draw) {
+    const f = { cv, ctx: cv.getContext('2d'), w: 0, h: 0, visible: true };
+    const baseH = parseFloat(cv.getAttribute('height'));
+    f.resize = () => {
+      const dpr = window.devicePixelRatio || 1;
+      const r = cv.getBoundingClientRect();
+      f.w = r.width; f.h = baseH;
+      cv.style.height = baseH + 'px';
+      cv.width = Math.round(r.width * dpr); cv.height = Math.round(baseH * dpr);
+      f.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    };
+    f.draw = () => { if (f.w > 0) draw(f.ctx, f.w, f.h); };
+    new ResizeObserver(() => { f.resize(); f.draw(); }).observe(cv);
+    if ('IntersectionObserver' in window) new IntersectionObserver(es => es.forEach(e => f.visible = e.isIntersecting)).observe(cv);
+    f.resize();
+    figs.push(f);
+    return f;
+  }
+  function segGroup(el, cb) {
+    el.querySelectorAll('button').forEach(b => b.addEventListener('click', () => {
+      el.querySelectorAll('button').forEach(x => x.setAttribute('aria-pressed', String(x === b)));
+      cb(b.dataset.n);
+    }));
+  }
+  // axis helpers: plot box, gridlines, labels
+  function box(ctx, w, h, L = 44, R = 10, Tp = 12, B = 26) { return { x0: L, x1: w - R, y0: Tp, y1: h - B }; }
+  function frame(ctx, b) {
+    ctx.strokeStyle = T.rule; ctx.lineWidth = 1;
+    ctx.strokeRect(b.x0 + 0.5, b.y0 + 0.5, b.x1 - b.x0, b.y1 - b.y0);
+  }
+  function hgrid(ctx, b, vals, yOf, fmt) {
+    ctx.font = T.monoS; ctx.fillStyle = T.mute; ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
+    for (const v of vals) {
+      const y = Math.round(yOf(v)) + 0.5;
+      ctx.strokeStyle = alpha(T.rule, 0.8); ctx.beginPath(); ctx.moveTo(b.x0, y); ctx.lineTo(b.x1, y); ctx.stroke();
+      ctx.fillText(fmt(v), b.x0 - 5, y);
+    }
+  }
+  function vlabels(ctx, b, vals, xOf, fmt) {
+    ctx.font = T.monoS; ctx.fillStyle = T.mute; ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+    for (const v of vals) {
+      const x = Math.round(xOf(v)) + 0.5;
+      if (x < b.x0 - 1 || x > b.x1 + 1) continue;
+      ctx.strokeStyle = alpha(T.rule, 0.6); ctx.beginPath(); ctx.moveTo(x, b.y0); ctx.lineTo(x, b.y1); ctx.stroke();
+      ctx.fillText(fmt(v), x, b.y1 + 6);
+    }
+  }
+  const hzFmt = v => v >= 1000 ? (v / 1000) + 'k' : String(v);
+
+  // ---- small radix-2 FFT (in place, re/im Float64Array, n a power of two)
+  function fft(re, im) {
+    const n = re.length;
+    for (let i = 1, j = 0; i < n; i++) {
+      let bit = n >> 1;
+      for (; j & bit; bit >>= 1) j ^= bit;
+      j ^= bit;
+      if (i < j) { let t = re[i]; re[i] = re[j]; re[j] = t; t = im[i]; im[i] = im[j]; im[j] = t; }
+    }
+    for (let len = 2; len <= n; len <<= 1) {
+      const a = -2 * Math.PI / len, wr = Math.cos(a), wi = Math.sin(a);
+      for (let i = 0; i < n; i += len) {
+        let cr = 1, ci = 0;
+        for (let k = 0; k < len / 2; k++) {
+          const p = i + k, q = p + len / 2;
+          const tr = re[q] * cr - im[q] * ci, ti = re[q] * ci + im[q] * cr;
+          re[q] = re[p] - tr; im[q] = im[p] - ti; re[p] += tr; im[p] += ti;
+          const nr = cr * wr - ci * wi; ci = cr * wi + ci * wr; cr = nr;
+        }
+      }
+    }
+  }
+  const hann = n => { const w = new Float64Array(n); for (let i = 0; i < n; i++) w[i] = 0.5 - 0.5 * Math.cos(2 * Math.PI * i / n); return w; };
+  // seeded noise so figures are stable between redraws
+  function rng(seed) { let s = seed >>> 0; return () => { s = (s * 1664525 + 1013904223) >>> 0; return s / 4294967296; }; }
+  function gauss(r) { return Math.sqrt(-2 * Math.log(r() + 1e-12)) * Math.cos(2 * Math.PI * r()); }
+
+  // ---- fig: tap ring (writer, reader, dropped)
+  const TAP = { N: 32, w: 0, r: 0, acc: 0, drop: 0, burst: 0, blk: 8192 };
+  const figTap = canvasFig($('cvTap'), (ctx, w, h) => {
+    ctx.clearRect(0, 0, w, h);
+    const cx = Math.min(w * 0.5, h * 0.5 + 40), cy = h / 2, R = Math.max(30, Math.min(h * 0.38, cx - 52)), r0 = R * 0.62;
+    const N = TAP.N, wi = Math.floor(TAP.w), ri = Math.floor(TAP.r);
+    for (let i = 0; i < N; i++) {
+      const a0 = -Math.PI / 2 + 2 * Math.PI * i / N, a1 = a0 + 2 * Math.PI / N * 0.92;
+      const pos = wi - 1 - ((wi - 1 - i) % N + N) % N; // the most recent write that landed in slot i
+      const age = wi - 1 - pos, unread = pos >= ri && pos < wi;
+      ctx.beginPath(); ctx.arc(cx, cy, R, a0, a1); ctx.arc(cx, cy, r0, a1, a0, true); ctx.closePath();
+      ctx.fillStyle = unread ? alpha(T.signal, 0.25 + 0.6 * (1 - age / N)) : alpha(T.rule, 0.7);
+      ctx.fill();
+    }
+    const head = (p, col, lab, out) => {
+      const a = -Math.PI / 2 + 2 * Math.PI * ((p % N) / N);
+      const ra = out ? R + 4 : r0 - 4, rb = out ? R + 22 : r0 - 22;
+      ctx.strokeStyle = col; ctx.lineWidth = 3; ctx.beginPath();
+      ctx.moveTo(cx + Math.cos(a) * ra, cy + Math.sin(a) * ra); ctx.lineTo(cx + Math.cos(a) * rb, cy + Math.sin(a) * rb); ctx.stroke();
+      ctx.font = T.mono; ctx.fillStyle = col; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      const rl = out ? R + 34 : r0 - 34;
+      ctx.fillText(lab, cx + Math.cos(a) * rl, cy + Math.sin(a) * rl);
+    };
+    head(TAP.w, T.signal, 'write', true);
+    head(TAP.r, T.control, 'read', false);
+    ctx.font = T.monoS; ctx.fillStyle = T.mute; ctx.textAlign = 'center';
+    ctx.fillText('/dev/shm/fxbox-tap', cx, cy - 8); ctx.fillText('4 s ring', cx, cy + 8);
+    // side legend
+    const lx = cx + R + 50;
+    if (lx + 150 < w) {
+      ctx.textAlign = 'left'; ctx.textBaseline = 'top'; ctx.font = T.sans;
+      const rows = [[T.signal, 'written, not yet read'], [T.rule, 'already read (free)'], [T.bad, 'dropped: ' + TAP.drop.toLocaleString()]];
+      rows.forEach(([c, t], k) => { ctx.fillStyle = c; ctx.fillRect(lx, cy - 40 + k * 26, 12, 12); ctx.fillStyle = T.ink; ctx.fillText(t, lx + 20, cy - 43 + k * 26); });
+    }
+  });
+  tickers.push(dt => {
+    const slow = $('slowTap').checked;
+    TAP.w += dt / 90; // one block per 90 ms (slowed down to watch)
+    TAP.burst -= dt;
+    if (TAP.burst <= 0) {
+      // reader wakes and drains; a busy reader sleeps much longer between passes
+      TAP.burst = slow ? 3600 : 260;
+      const wf = Math.floor(TAP.w), margin = TAP.N / 8;
+      if (wf - TAP.r > TAP.N - margin) { TAP.drop += Math.round((wf - (TAP.N - margin) - TAP.r) * TAP.blk); TAP.r = wf - (TAP.N - margin); }
+      TAP.target = wf;
+    }
+    if (TAP.target > TAP.r) TAP.r = Math.min(TAP.target, TAP.r + dt / (slow ? 60 : 30));
+    $('tapLag').textContent = Math.round((Math.floor(TAP.w) - TAP.r) * TAP.blk / 48) + ' ms';
+    $('tapDrop').textContent = TAP.drop.toLocaleString();
+    if (figTap.visible) figTap.draw();
+  });
+  $('resetTap').addEventListener('click', () => { TAP.drop = 0; figTap.draw(); $('tapDrop').textContent = '0'; });
+
+  // ---- fig: FFT size vs resolution (direct DTFT at display frequencies)
+  const F1 = { fmin: 40, fmax: 200, fs: 48000 };
+  const figFFT = canvasFig($('cvFFT'), (ctx, w, h) => {
+    ctx.clearRect(0, 0, w, h);
+    const N = 1 << +$('nFFT').value, fs = F1.fs, click = $('clickFFT').checked;
+    // time bar
+    const tb = { x0: 44, x1: w - 10, y: 8 }, tw = tb.x1 - tb.x0, Tms = N / fs * 1000;
+    ctx.fillStyle = alpha(T.rule, 0.8); ctx.fillRect(tb.x0, tb.y, tw, 10);
+    const ww = Math.min(tw, tw * Tms / 800), wx = tb.x0 + (tw - ww) / 2;
+    ctx.fillStyle = alpha(T.control, 0.55); ctx.fillRect(wx, tb.y, ww, 10);
+    if (click) { ctx.fillStyle = T.bad; ctx.fillRect(tb.x0 + tw / 2 - 1, tb.y - 3, 2, 16); }
+    ctx.font = T.monoS; ctx.fillStyle = T.mute; ctx.textAlign = 'left'; ctx.textBaseline = 'top';
+    ctx.fillText('window ' + Tms.toFixed(1) + ' ms of 800 ms', tb.x0, tb.y + 14);
+    // signal
+    const x = new Float64Array(N), wn = hann(N);
+    let sw = 0;
+    for (let n = 0; n < N; n++) {
+      const t = n / fs;
+      x[n] = (0.5 * Math.sin(2 * Math.PI * 82.4 * t) + 0.5 * Math.sin(2 * Math.PI * 87.3 * t + 1)) * wn[n];
+      sw += wn[n];
+    }
+    if (click) for (let k = 0; k < 6; k++) x[(N >> 1) + k] += 0.9 * Math.exp(-k / 2) * (k % 2 ? -1 : 1) * wn[(N >> 1) + k];
+    const dtft = f => {
+      const c = Math.cos(2 * Math.PI * f / fs), s = Math.sin(2 * Math.PI * f / fs);
+      let cr = 1, ci = 0, re = 0, im = 0;
+      for (let n = 0; n < N; n++) { re += x[n] * cr; im -= x[n] * ci; const nr = cr * c - ci * s; ci = cr * s + ci * c; cr = nr; }
+      return 20 * Math.log10(Math.max(1e-9, 2 * Math.hypot(re, im) / sw));
+    };
+    const b = box(ctx, w, h, 44, 10, 46, 26), D0 = -80, D1 = 0;
+    const xOf = f => b.x0 + (f - F1.fmin) / (F1.fmax - F1.fmin) * (b.x1 - b.x0);
+    const yOf = d => b.y0 + (D1 - clamp(d, D0, D1)) / (D1 - D0) * (b.y1 - b.y0);
+    hgrid(ctx, b, [0, -20, -40, -60, -80], yOf, v => v);
+    vlabels(ctx, b, [50, 82, 100, 150, 200], xOf, v => v === 82 ? '82' : v);
+    frame(ctx, b);
+    ctx.strokeStyle = alpha(T.mute, 0.6); ctx.setLineDash([3, 3]);
+    for (const f of [82.4, 87.3]) { const X = xOf(f); ctx.beginPath(); ctx.moveTo(X, b.y0); ctx.lineTo(X, b.y1); ctx.stroke(); }
+    ctx.setLineDash([]);
+    const P = Math.min(260, Math.floor((b.x1 - b.x0) / 2));
+    ctx.strokeStyle = T.signal; ctx.lineWidth = 2; ctx.beginPath();
+    for (let i = 0; i <= P; i++) { const f = F1.fmin + (F1.fmax - F1.fmin) * i / P, y = yOf(dtft(f)); i ? ctx.lineTo(xOf(f), y) : ctx.moveTo(xOf(f), y); }
+    ctx.stroke();
+    const df = fs / N;
+    ctx.fillStyle = T.ink;
+    for (let k = Math.ceil(F1.fmin / df); k * df <= F1.fmax; k++) { ctx.beginPath(); ctx.arc(xOf(k * df), yOf(dtft(k * df)), 2.6, 0, 7); ctx.fill(); }
+    $('nFFTo').textContent = N; $('fftT').textContent = Tms.toFixed(1) + ' ms';
+    $('fftDf').textContent = df.toFixed(2) + ' Hz'; $('fftSep').textContent = (4.9 / df).toFixed(2) + ' bins';
+  });
+  $('nFFT').addEventListener('input', () => figFFT.draw());
+  $('clickFFT').addEventListener('change', () => figFFT.draw());
+
+  // ---- fig: YIN on a synthetic pluck
+  const NAMES = ['C', 'C♯', 'D', 'D♯', 'E', 'F', 'F♯', 'G', 'G♯', 'A', 'A♯', 'B'];
+  const noteOf = hz => { const m = 69 + 12 * Math.log2(hz / 440), r = Math.round(m); return { name: NAMES[(r % 12 + 12) % 12] + (Math.floor(r / 12) - 1), cents: 100 * (m - r) }; };
+  const Y = { sr: 24000, W: 1024, tmin: 17, tmax: 401, th: 0.15 };
+  const yinHz = () => 70 * Math.pow(10, +$('yinF').value / 1000); // 70 Hz .. 700 Hz
+  function yinRun() {
+    const f0 = yinHz(), a1 = +$('yinA').value / 100, nz = +$('yinN').value / 100, n = Y.W + Y.tmax + 1;
+    const amps = [a1, 1, 0.8, 0.45, 0.35, 0.25, 0.15, 0.1], r = rng(7), x = new Float64Array(n);
+    for (let i = 0; i < n; i++) {
+      const t = i / Y.sr; let v = 0;
+      for (let k = 1; k <= 8; k++) if (k * f0 < Y.sr / 2) v += amps[k - 1] * Math.exp(-t * k * 1.5) * Math.sin(2 * Math.PI * k * f0 * t + k * 0.7);
+      x[i] = v + nz * 1.2 * gauss(r);
+    }
+    const d = new Float64Array(Y.tmax + 1), dp = new Float64Array(Y.tmax + 1);
+    for (let tau = 1; tau <= Y.tmax; tau++) { let s = 0; for (let j = 0; j < Y.W; j++) { const e = x[j] - x[j + tau]; s += e * e; } d[tau] = s; }
+    dp[0] = 1; let run = 0;
+    for (let tau = 1; tau <= Y.tmax; tau++) { run += d[tau]; dp[tau] = run > 0 ? d[tau] * tau / run : 1; }
+    let pick = -1;
+    for (let tau = Y.tmin; tau < Y.tmax; tau++) if (dp[tau] < Y.th) { pick = tau; while (pick + 1 < Y.tmax && dp[pick + 1] < dp[pick]) pick++; break; }
+    let est = null;
+    if (pick > 0) {
+      const a = d[pick - 1], b = d[pick], c = d[pick + 1], den = a - 2 * b + c;
+      const sh = Math.abs(den) > 1e-12 ? clamp(0.5 * (a - c) / den, -1, 1) : 0;
+      est = Y.sr / (pick + sh);
+    }
+    return { f0, dp, pick, est };
+  }
+  const figYIN = canvasFig($('cvYIN'), (ctx, w, h) => {
+    ctx.clearRect(0, 0, w, h);
+    const R = yinRun(), b = box(ctx, w, h, 40, 12, 26, 28);
+    const xOf = t => b.x0 + t / Y.tmax * (b.x1 - b.x0), yOf = v => b.y1 - clamp(v, 0, 1.4) / 1.4 * (b.y1 - b.y0);
+    hgrid(ctx, b, [0, 0.5, 1], yOf, v => v.toFixed(1));
+    vlabels(ctx, b, [0, 100, 200, 300, 400], xOf, v => v);
+    ctx.font = T.monoS; ctx.fillStyle = T.mute; ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
+    for (const hz of [1000, 240, 120, 80]) ctx.fillText(hz + ' Hz', xOf(Y.sr / hz), b.y0 - 4);
+    ctx.textAlign = 'right'; ctx.textBaseline = 'top'; ctx.fillText('τ (samples at 24 kHz)', b.x1, b.y1 + 16);
+    ctx.fillStyle = alpha(T.rule, 0.5); ctx.fillRect(b.x0, b.y0, xOf(Y.tmin) - b.x0, b.y1 - b.y0);
+    frame(ctx, b);
+    ctx.strokeStyle = T.control; ctx.setLineDash([5, 4]); ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.moveTo(b.x0, yOf(Y.th)); ctx.lineTo(b.x1, yOf(Y.th)); ctx.stroke(); ctx.setLineDash([]);
+    ctx.fillStyle = T.control; ctx.textAlign = 'left'; ctx.textBaseline = 'bottom'; ctx.font = T.monoS;
+    ctx.fillText('0.15', b.x0 + 4, yOf(Y.th) - 2);
+    ctx.strokeStyle = T.signal; ctx.lineWidth = 2; ctx.beginPath();
+    for (let t = 0; t <= Y.tmax; t++) t ? ctx.lineTo(xOf(t), yOf(R.dp[t])) : ctx.moveTo(xOf(t), yOf(R.dp[t]));
+    ctx.stroke();
+    // true period marker
+    ctx.strokeStyle = alpha(T.mute, 0.7); ctx.setLineDash([2, 3]); ctx.beginPath();
+    ctx.moveTo(xOf(Y.sr / R.f0), b.y0); ctx.lineTo(xOf(Y.sr / R.f0), b.y1); ctx.stroke(); ctx.setLineDash([]);
+    if (R.pick > 0) {
+      ctx.fillStyle = T.bad; ctx.beginPath(); ctx.arc(xOf(R.pick), yOf(R.dp[R.pick]), 5, 0, 7); ctx.fill();
+    }
+    const tn = noteOf(R.f0);
+    $('yinFo').textContent = R.f0.toFixed(1) + ' Hz'; $('yinTrue').textContent = R.f0.toFixed(2) + ' Hz';
+    $('yinAo').textContent = $('yinA').value + '%'; $('yinNo').textContent = $('yinN').value + '%';
+    if (R.est) {
+      const nn = noteOf(R.est);
+      $('yinEst').textContent = R.est.toFixed(2) + ' Hz';
+      $('yinErr').textContent = (1200 * Math.log2(R.est / R.f0)).toFixed(2) + ' cents';
+      $('yinNote').textContent = nn.name + ' ' + (nn.cents >= 0 ? '+' : '') + nn.cents.toFixed(0) + '¢';
+    } else { $('yinEst').textContent = 'no dip below 0.15'; $('yinErr').textContent = '-'; $('yinNote').textContent = '(nothing shown)'; }
+  });
+  ['yinF', 'yinA', 'yinN'].forEach(id => $(id).addEventListener('input', () => figYIN.draw()));
+
+  // ---- fig: chroma folding + chord templates (mirrors analysis.py)
+  const HP = [1, 2, 3, 4, 5, 6].map(k => [((Math.round(12 * Math.log2(k)) % 12) + 12) % 12, Math.pow(0.6, k - 1)]);
+  const CT = { '': { 0: 1, 4: 1, 7: 1 }, m: { 0: 1, 3: 1, 7: 1 }, 7: { 0: 1, 4: 1, 7: 1, 10: 0.8 }, maj7: { 0: 1, 4: 1, 7: 1, 11: 0.8 },
+    m7: { 0: 1, 3: 1, 7: 1, 10: 0.8 }, sus2: { 0: 1, 2: 1, 7: 1 }, sus4: { 0: 1, 5: 1, 7: 1 }, 5: { 0: 1, 7: 1 } };
+  const PEN = { '': 0, m: 0, 5: 0.04, 7: 0.035, maj7: 0.035, m7: 0.035, sus2: 0.03, sus4: 0.03 };
+  const unit = v => { const n = Math.hypot(...v) || 1; return v.map(x => x / n); };
+  const dot = (a, b) => a.reduce((s, x, i) => s + x * b[i], 0);
+  const TPL = [];
+  for (let r = 0; r < 12; r++) for (const [suf, iv] of Object.entries(CT)) {
+    const v = new Array(12).fill(0);
+    for (const [k, wt] of Object.entries(iv)) for (const [hh, hw] of HP) v[(r + +k + hh) % 12] += wt * hw;
+    TPL.push({ name: NAMES[r] + suf, v: unit(v), pen: PEN[suf] });
+  }
+  const noteTpl = pc => { const v = new Array(12).fill(0); for (const [hh, hw] of HP) v[(pc + hh) % 12] += hw; return unit(v); };
+  const midiHz = m => 440 * Math.pow(2, (m - 69) / 12);
+  const VOICE = { a2: [45], c: [48, 52, 55, 60, 64] };
+  const PZ = [0.6, 1, 0.8, 0.5, 0.4, 0.3, 0.2, 0.15, 0.1, 0.08, 0.06, 0.05, 0.04, 0.03, 0.03, 0.02];
+  let chSel = 'a2';
+  const figChroma = canvasFig($('cvChroma'), (ctx, w, h) => {
+    ctx.clearRect(0, 0, w, h);
+    const notes = VOICE[chSel], cols = [T.signal, T.control, T.p2, T.p3, T.good], parts = [];
+    notes.forEach((m, i) => { const f0 = midiHz(m); PZ.forEach((a, k) => { const f = f0 * (k + 1); if (f >= 60 && f <= 2000) parts.push({ f, a: a * (i < 3 ? 1 : 0.7), i, pc: ((Math.round(69 + 12 * Math.log2(f / 440)) % 12) + 12) % 12 }); }); });
+    const ch = new Array(12).fill(0); parts.forEach(p => ch[p.pc] += Math.sqrt(p.a));
+    const mx = Math.max(...ch); for (let i = 0; i < 12; i++) ch[i] /= mx;
+    // top: partial stems on log f
+    const b = { x0: 30, x1: w - 10, y0: 26, y1: 160 }, L0 = Math.log(60), L1 = Math.log(2000);
+    const xOf = f => b.x0 + (Math.log(f) - L0) / (L1 - L0) * (b.x1 - b.x0);
+    vlabels(ctx, b, [60, 100, 200, 500, 1000, 2000], xOf, hzFmt); frame(ctx, b);
+    const amax = Math.max(...parts.map(p => p.a));
+    parts.forEach(p => {
+      const X = Math.round(xOf(p.f)) + 0.5, Yp = b.y1 - p.a / amax * (b.y1 - b.y0 - 18);
+      ctx.strokeStyle = cols[p.i]; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(X, b.y1); ctx.lineTo(X, Yp); ctx.stroke();
+      if (w > 480 || p.a > 0.15) { ctx.font = T.monoS; ctx.fillStyle = cols[p.i]; ctx.textAlign = 'center'; ctx.textBaseline = 'bottom'; ctx.fillText(NAMES[p.pc], X, Yp - 2); }
+    });
+    ctx.font = T.monoS; ctx.fillStyle = T.mute; ctx.textAlign = 'left'; ctx.textBaseline = 'bottom';
+    ctx.fillText(notes.map(m => NAMES[m % 12] + (Math.floor(m / 12) - 1)).join(' ') + ': partials 1-16 in 60 Hz-2 kHz', b.x0, b.y0 - 6);
+    // bottom: chroma bars
+    const c0 = 210, c1 = h - 22, bw = (b.x1 - b.x0) / 12;
+    ctx.fillStyle = T.mute; ctx.fillText('chroma (max = 1)', b.x0, c0 - 8);
+    ctx.strokeStyle = T.rule; ctx.beginPath(); ctx.moveTo(b.x0, c1 + 0.5); ctx.lineTo(b.x1, c1 + 0.5); ctx.stroke();
+    for (let i = 0; i < 12; i++) {
+      const bh = ch[i] * (c1 - c0);
+      ctx.fillStyle = alpha(T.p2, 0.35 + 0.6 * ch[i]); ctx.fillRect(b.x0 + i * bw + 3, c1 - bh, bw - 6, bh);
+      ctx.fillStyle = T.ink; ctx.textAlign = 'center'; ctx.textBaseline = 'top'; ctx.font = T.monoS;
+      ctx.fillText(NAMES[i], b.x0 + (i + 0.5) * bw, c1 + 5);
+    }
+    // the decision, as in analysis.py: best chord vs one note with harmonics
+    const v = unit(ch);
+    let best = null; for (const t of TPL) { const s = dot(t.v, v) - t.pen; if (!best || s > best.s) best = { n: t.name, s }; }
+    const second = [...ch].sort((a, c) => c - a)[1];
+    const pc = notes[0] % 12, ns = dot(noteTpl(pc), v);
+    const isChord = best.s > 0.8 && second > 0.3 && !(ns >= best.s - 0.02);
+    $('chBest').textContent = best.n + ' (' + best.s.toFixed(2) + ')';
+    $('chNote').textContent = NAMES[pc] + ' (' + ns.toFixed(2) + ')';
+    $('chVerdict').textContent = isChord ? 'chord ' + best.n : 'note ' + NAMES[pc] + ', no chord';
+  });
+  segGroup($('chromaSel'), n => { chSel = n; figChroma.draw(); });
+
+  // ---- fig: H1, coherence and GCC-PHAT on simulated noise
+  const XF = { N: 1024, fs: 48000, D: 240, mode: 'lp' };
+  XF.alpha = Math.exp(-2 * Math.PI * 1000 / XF.fs); // one-pole lowpass, ~1 kHz
+  function xferRun() {
+    const N = XF.N, K = 1 << +$('xAvg').value, g = +$('xEcho').value / 100, nz = +$('xNoise').value / 100;
+    const r = rng(11), len = K * N + XF.D, x = new Float64Array(len), y = new Float64Array(len);
+    for (let i = 0; i < len; i++) x[i] = gauss(r);
+    let st = 0;
+    for (let i = 0; i < len; i++) {
+      if (XF.mode === 'lp') { st = (1 - XF.alpha) * x[i] + XF.alpha * st; y[i] = st; }
+      else y[i] = x[i] + (i >= XF.D ? g * x[i - XF.D] : 0);
+      y[i] += nz * 0.5 * gauss(r);
+    }
+    const wn = hann(N), M = N / 2 + 1, sxx = new Float64Array(M), syy = new Float64Array(M), sxr = new Float64Array(M), sxi = new Float64Array(M);
+    for (let k = 0; k < K; k++) {
+      const o = XF.D + k * N, xr = new Float64Array(N), xi = new Float64Array(N), yr = new Float64Array(N), yi = new Float64Array(N);
+      for (let i = 0; i < N; i++) { xr[i] = x[o + i] * wn[i]; yr[i] = y[o + i] * wn[i]; }
+      fft(xr, xi); fft(yr, yi);
+      for (let b = 0; b < M; b++) {
+        sxx[b] += xr[b] * xr[b] + xi[b] * xi[b]; syy[b] += yr[b] * yr[b] + yi[b] * yi[b];
+        sxr[b] += xr[b] * yr[b] + xi[b] * yi[b]; sxi[b] += xr[b] * yi[b] - xi[b] * yr[b]; // conj(X)·Y
+      }
+    }
+    const H = new Float64Array(M), C = new Float64Array(M);
+    for (let b = 1; b < M; b++) { const m2 = sxr[b] * sxr[b] + sxi[b] * sxi[b]; H[b] = 10 * Math.log10(Math.max(1e-12, m2) / (sxx[b] * sxx[b])); C[b] = m2 / (sxx[b] * syy[b]); }
+    // GCC-PHAT: unit-magnitude cross-spectrum -> inverse FFT -> peak lag
+    const gr = new Float64Array(N), gi = new Float64Array(N);
+    for (let b = 0; b < M; b++) { const m = Math.hypot(sxr[b], sxi[b]) || 1; gr[b] = sxr[b] / m; gi[b] = sxi[b] / m; if (b > 0 && b < N / 2) { gr[N - b] = gr[b]; gi[N - b] = -gi[b]; } }
+    for (let i = 0; i < N; i++) gi[i] = -gi[i];
+    fft(gr, gi); // inverse via conjugation (scale irrelevant for argmax)
+    let best = 0, lag = 0;
+    for (let i = 0; i < N; i++) { const l = i < N / 2 ? i : i - N; if (Math.abs(l) <= 0.02 * XF.fs && gr[i] > best) { best = gr[i]; lag = l; } }
+    return { H, C, K, g, lag };
+  }
+  const trueH = (f, g) => {
+    const wv = 2 * Math.PI * f / XF.fs;
+    if (XF.mode === 'lp') { const a = XF.alpha; return 20 * Math.log10((1 - a) / Math.hypot(1 - a * Math.cos(wv), a * Math.sin(wv))); }
+    return 20 * Math.log10(Math.max(1e-4, Math.hypot(1 + g * Math.cos(wv * XF.D), g * Math.sin(wv * XF.D))));
+  };
+  const figXfer = canvasFig($('cvXfer'), (ctx, w, h) => {
+    ctx.clearRect(0, 0, w, h);
+    const R = xferRun(), M = XF.N / 2 + 1, df = XF.fs / XF.N, L0 = Math.log(50), L1 = Math.log(20000);
+    const top = { x0: 40, x1: w - 10, y0: 12, y1: 196 }, bot = { x0: 40, x1: w - 10, y0: 222, y1: h - 24 };
+    const xOf = f => top.x0 + (Math.log(f) - L0) / (L1 - L0) * (top.x1 - top.x0);
+    const yH = d => top.y0 + (10 - clamp(d, -40, 10)) / 50 * (top.y1 - top.y0);
+    const yC = c => bot.y1 - clamp(c, 0, 1) * (bot.y1 - bot.y0);
+    hgrid(ctx, top, [10, 0, -10, -20, -30, -40], yH, v => v); hgrid(ctx, bot, [0, 0.5, 1], yC, v => v.toFixed(1));
+    const fl = [100, 200, 500, 1000, 2000, 5000, 10000, 20000].filter(f => w > 420 || [100, 1000, 10000].includes(f));
+    vlabels(ctx, bot, fl, xOf, hzFmt);
+    ctx.strokeStyle = alpha(T.rule, 0.6);
+    fl.forEach(f => { const X = Math.round(xOf(f)) + 0.5; ctx.beginPath(); ctx.moveTo(X, top.y0); ctx.lineTo(X, top.y1); ctx.stroke(); });
+    frame(ctx, top); frame(ctx, bot);
+    ctx.font = T.monoS; ctx.fillStyle = T.mute; ctx.textAlign = 'right'; ctx.textBaseline = 'top';
+    ctx.fillText('|H| dB', top.x1 - 4, top.y0 + 4); ctx.fillText('coherence γ²', bot.x1 - 4, bot.y0 + 4);
+    const trace = (col, lw, dash, fy, yf) => {
+      ctx.strokeStyle = col; ctx.lineWidth = lw; ctx.setLineDash(dash); ctx.beginPath(); let st = false;
+      for (let b = 1; b < M; b++) { const f = b * df; if (f < 50 || f > 20000) continue; const X = xOf(f), Yv = yf(fy(b, f)); st ? ctx.lineTo(X, Yv) : ctx.moveTo(X, Yv); st = true; }
+      ctx.stroke(); ctx.setLineDash([]);
+    };
+    trace(T.signal, 1.6, [], b => R.H[b], yH);
+    trace(T.ink, 1.2, [4, 3], (b, f) => trueH(f, R.g), yH);
+    trace(T.control, 1.6, [], b => R.C[b], yC);
+    let cs = 0, cn = 0; for (let b = 2; b < M - 2; b++) { cs += R.C[b]; cn++; }
+    $('xEchoO').textContent = R.g.toFixed(2); $('xNoiseO').textContent = $('xNoise').value + '%'; $('xAvgO').textContent = R.K;
+    $('xCoh').textContent = (cs / cn).toFixed(2);
+    $('xDel').textContent = (R.lag / XF.fs * 1000).toFixed(2) + ' ms';
+  });
+  segGroup($('xferSel'), n => { XF.mode = n; figXfer.draw(); });
+  ['xEcho', 'xNoise', 'xAvg'].forEach(id => $(id).addEventListener('input', () => figXfer.draw()));
+
+  // ---- boot + loop
+  figs.forEach(f => f.draw());
+  if (!RM && tickers.length) {
+    let last = performance.now();
+    const loop = now => {
+      const dt = Math.min(50, now - last); last = now;
+      tickers.forEach(t => t(dt));
+      requestAnimationFrame(loop);
+    };
+    requestAnimationFrame(loop);
+  }
+})();
+</script>
+</body>
+</html>

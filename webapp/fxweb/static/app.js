@@ -113,11 +113,22 @@ function renderHealth(h) {
   $("#health-note").textContent = notes.join(" ");
 }
 
+function renderRecPill(rec) {
+  const pill = $("#rec-pill");
+  pill.hidden = !rec;
+  if (rec) {
+    const s = Math.floor(rec.elapsed_s);
+    $("span", pill).textContent = `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
+  }
+}
+
 async function pollHealth() {
   if (document.visibilityState !== "visible") return;
   try {
-    const [h, e] = await Promise.all([api("GET", "/api/health"), api("GET", "/api/engine")]);
+    const [h, e, live] = await Promise.all([api("GET", "/api/health"), api("GET", "/api/engine"),
+      api("GET", "/api/live").catch(() => null)]);
     renderHealth(h);
+    renderRecPill(live?.recording);
     if (JSON.stringify(e.loaded) !== JSON.stringify(state.loaded)) {
       state.loaded = e.loaded;
       renderLoaded();
@@ -341,11 +352,17 @@ async function deletePreset() {
 
 // ---------- routing ----------
 
+let currentView = null;
 function show(view) {
-  $("#view-list").hidden = view !== "list";
-  $("#view-edit").hidden = view !== "edit";
+  for (const v of ["list", "edit", "live", "takes"]) $(`#view-${v}`).hidden = view !== v;
   document.body.classList.toggle("editing", view === "edit");
-  window.scrollTo(0, 0);
+  document.body.classList.toggle("compact", view === "live" || view === "takes");
+  document.querySelectorAll(".tabs a").forEach((a) =>
+    a.classList.toggle("on", a.dataset.tab === view || (view === "edit" && a.dataset.tab === "list")));
+  if (view !== currentView) window.scrollTo(0, 0);
+  currentView = view;
+  // live.js listens: it opens the analysis stream only while the Live page is showing.
+  document.dispatchEvent(new CustomEvent("fx:view", { detail: view }));
 }
 
 let currentHash = location.hash;
@@ -362,6 +379,10 @@ async function route() {
       const r = await api("GET", `/api/presets/${encodeURIComponent(id)}`);
       openEditor(id, r.preset);
       show("edit");
+    } else if (location.hash === "#/live") {
+      show("live");
+    } else if (location.hash === "#/takes") {
+      show("takes");
     } else if (location.hash === "#/new") {
       openEditor(null, { format: 1, name: "New preset", description: "", buffer_size: 128,
         chain: [{ effect: "gain", params: {} }].filter((s) => state.effects[s.effect]) });
