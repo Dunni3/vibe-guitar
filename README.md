@@ -97,6 +97,11 @@ guitar signal. Next: the real-time audio path through the Pisound (a JACK engine
 latency, then the first effects (EQ, compressor, delay, reverb) and the body-filter fit. Design
 decisions and milestones are in [CLAUDE.md](CLAUDE.md).
 
+## License
+
+[MIT](LICENSE): use it, copy it, change it and build your own, as long as the copyright notice
+stays with the code.
+
 ## For developers
 
 ### Layout
