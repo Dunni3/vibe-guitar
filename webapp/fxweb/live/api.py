@@ -3,6 +3,8 @@
     GET    /api/live                    source, recording, disk status
     GET    /api/live/sources            what can be listened to here
     POST   /api/live/source             {"kind": "sim"|"tap"|"alsa", ...}
+    POST   /api/live/pause              stop listening (no reads, analysis or history); remembered
+    POST   /api/live/resume
     GET    /api/live/stream?fps=30      Server-Sent Events: one JSON analysis frame per event
     POST   /api/live/record/start       {"name"?, "notes"?}
     POST   /api/live/record/stop
@@ -76,6 +78,16 @@ def add_live_routes(app: FastAPI, hub: LiveHub, body_json) -> None:
             raise HTTPException(422, str(e)) from None
         except LiveError as e:
             raise HTTPException(409, str(e)) from None
+        return hub.status()
+
+    @app.post("/api/live/pause")
+    async def live_pause():
+        await asyncio.to_thread(conflict, hub.pause)
+        return hub.status()
+
+    @app.post("/api/live/resume")
+    async def live_resume():
+        await asyncio.to_thread(hub.resume)
         return hub.status()
 
     @app.get("/api/live/stream")

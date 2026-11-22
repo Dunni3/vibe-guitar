@@ -370,3 +370,36 @@ def test_source_specs():
         make_source({"kind": "alsa", "device": "hw:0; rm -rf /"})
     with pytest.raises(ValueError):
         make_source({"kind": "nope"})
+
+
+def test_pause_stops_listening_and_is_remembered(live_client, tmp_path):
+    c, hub = live_client
+    assert c.get("/api/live").json()["paused"] is False
+    st = c.post("/api/live/pause").json()
+    assert st["paused"] and st["source"]["state"] == "paused"
+    assert hub._reader is None and hub._history is None  # nothing reads or buffers audio
+    assert c.post("/api/live/record/start").status_code == 409
+    assert c.post("/api/live/record/retro", json={"seconds": 1}).status_code == 409
+    with c.stream("GET", "/api/live/stream?limit=1") as r:  # open pages are told, once a second
+        frame = json.loads(next(line for line in r.iter_lines() if line.startswith("data:"))[5:])
+    assert frame["paused"] and "spectrum" not in frame
+    # Remembered: a restarted server comes up paused, and switching source keeps it paused.
+    hub2 = LiveHub(hub.store)
+    hub2.start(FastSource())
+    assert hub2.paused and hub2.source_status()["state"] == "paused" and hub2._reader is None
+    hub2.close()
+    st = c.post("/api/live/resume").json()
+    assert not st["paused"]
+    for _ in range(100):
+        if hub.source_status()["state"] == "live":
+            break
+        time.sleep(0.02)
+    assert hub.source_status()["state"] == "live"
+
+
+def test_cannot_pause_while_recording(live_client):
+    c, _ = live_client
+    assert c.post("/api/live/record/start").status_code == 200
+    assert c.post("/api/live/pause").status_code == 409
+    c.post("/api/live/record/stop")
+    assert c.post("/api/live/pause").status_code == 200

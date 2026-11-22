@@ -84,6 +84,13 @@
     </section>
 
     <section id="view-live" class="view live" hidden>
+      <button type="button" id="live-toggle" class="live-toggle" aria-pressed="true">
+        <span class="lt-switch" aria-hidden="true"><span></span></span>
+        <span class="lt-text"><b>Live analysis is on</b>
+          <small>Tap to pause: the Pi stops listening and analysing, to save CPU</small></span>
+      </button>
+      <p id="paused-note" class="paused-note" hidden>Paused. Nothing is being read, analysed or kept in memory,
+        so “Save last” and recording are off too. Tap the switch to start listening again.</p>
       <div class="source-row">
         <label class="source-pick">
           <span class="sr-only">Signal source</span>

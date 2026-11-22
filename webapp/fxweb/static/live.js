@@ -16,6 +16,7 @@
   const L = {
     view: null,
     es: null,
+    paused: false,
     fps: 30,
     frozen: false,
     frame: null,          // latest frame being displayed
@@ -88,7 +89,33 @@
   // ---------------------------------------------------------------- stream
 
   function wantStream() {
-    return L.view === "live" && document.visibilityState === "visible";
+    return L.view === "live" && document.visibilityState === "visible" && !L.paused;
+  }
+
+  // Paused: the box stops reading and analysing; the page closes its stream and hides the panels.
+  function applyPaused(paused) {
+    const changed = L.paused !== paused;
+    L.paused = paused;
+    $("#view-live").classList.toggle("paused", paused);
+    const t = $("#live-toggle");
+    t.setAttribute("aria-pressed", String(!paused));
+    $("b", t).textContent = paused ? "Live analysis is paused" : "Live analysis is on";
+    $("small", t).textContent = paused ? "Tap to start listening again"
+      : "Tap to pause: the Pi stops listening and analysing, to save CPU";
+    $("#paused-note").hidden = !paused;
+    if (paused) setState("paused", "paused");
+    if (changed) {
+      if (paused) { L.frame = null; L.channels = []; resetHistories(); }
+      syncStream();
+    }
+  }
+
+  async function toggleLive() {
+    const st = await api("POST", L.paused ? "/api/live/resume" : "/api/live/pause");
+    L.statusAll = st;
+    applyPaused(st.paused);
+    toast(st.paused ? "Live analysis paused" : "Listening again");
+    if (!st.paused) loadStatus();
   }
 
   function syncStream() {
@@ -107,6 +134,7 @@
   }
 
   function onFrame(f) {
+    if (f.paused) { applyPaused(true); return; }
     const now = performance.now();
     L.rateWindow.push(now);
     while (L.rateWindow.length && L.rateWindow[0] < now - 2000) L.rateWindow.shift();
@@ -574,6 +602,7 @@
     const dropped = src.dropped ? ` · ${(src.dropped / (src.sample_rate || 48000)).toFixed(2)} s lost` : "";
     if (src.state === "live") setState("live", `live · ${(src.sample_rate / 1000).toFixed(0)} kHz · ${ch}${dropped}`);
     else if (src.state === "starting") setState("waiting", "starting…");
+    else if (src.state === "paused") setState("paused", "paused");
     else setState(src.state === "error" ? "error" : "waiting", src.error || src.state);
     if (src.error && src.state !== "live") { $("#live-error").hidden = false; $("#live-error").textContent = src.error; }
     if (src.retro_max_s) {
@@ -627,6 +656,7 @@
   async function loadStatus() {
     try {
       L.statusAll = await api("GET", "/api/live");
+      applyPaused(!!L.statusAll.paused);
       renderSource(L.statusAll.source);
       renderRec(L.statusAll.recording);
       renderDisk();
@@ -795,6 +825,7 @@
     document.querySelectorAll(".panel").forEach((p) => io.observe(p));
     window.addEventListener("resize", () => requestAnimationFrame(draw));
 
+    $("#live-toggle").addEventListener("click", (e) => busy(e.currentTarget, toggleLive));
     $("#rec-btn").addEventListener("click", (e) => busy(e.currentTarget, toggleRecord));
     $("#mark-btn").addEventListener("click", (e) => busy(e.currentTarget, async () => {
       const r = await api("POST", "/api/live/record/mark");
@@ -821,6 +852,7 @@
       restartStream();
     });
     $("#sg-ch").addEventListener("change", () => { L.sg = null; });
+    // Also notices a pause or resume made from another phone.
     setInterval(() => { if (L.view === "live" && !L.rec) loadStatus(); }, 10000);
     requestAnimationFrame(tickRecTimer);
   }

@@ -68,6 +68,8 @@ class LiveHub:
         self._last_take: dict | None = None
         self._auto_stopped: dict | None = None
         self._preset: dict | None = None
+        self._state_file = store.root / ".live.json"  # remembers "paused" across restarts
+        self._paused = self._load_paused()
 
         self._subs: set[_Subscriber] = set()
         self._subs_lock = threading.Lock()
@@ -92,13 +94,58 @@ class LiveHub:
             self._spec = spec if isinstance(spec, dict) else src.describe() | {"kind": src.kind}
             if self._preset is not None:
                 src.set_preset(self._preset)
-            self._state, self._error = "starting", None
             self._history = None
             self._gen += 1
-            self._stop_reader = threading.Event()
-            self._reader = threading.Thread(target=self._reader_loop, args=(src, self._stop_reader),
-                                            daemon=True, name=f"live-{src.kind}")
-            self._reader.start()
+            if self._paused:
+                self._state, self._error = "paused", None  # remembered; starts on resume()
+            else:
+                self._launch_reader()
+
+    def _launch_reader(self) -> None:
+        src = self._source
+        assert src is not None
+        self._state, self._error = "starting", None
+        self._stop_reader = threading.Event()
+        self._reader = threading.Thread(target=self._reader_loop, args=(src, self._stop_reader),
+                                        daemon=True, name=f"live-{src.kind}")
+        self._reader.start()
+
+    # ------------------------------------------------------------ pause
+
+    @property
+    def paused(self) -> bool:
+        return self._paused
+
+    def _load_paused(self) -> bool:
+        try:
+            return bool(json.loads(self._state_file.read_text()).get("paused", False))
+        except (OSError, ValueError, AttributeError):
+            return False
+
+    def _save_paused(self) -> None:
+        try:
+            self._state_file.write_text(json.dumps({"paused": self._paused}))
+        except OSError:
+            pass  # not fatal: it just won't be remembered
+
+    def pause(self) -> None:
+        """Stop listening altogether: no source reads, no history, no analysis. Saves CPU."""
+        with self._lock:
+            if self._rec is not None:
+                raise LiveError("stop the recording before pausing")
+            self._paused = True
+            self._save_paused()
+            self._stop_reader_thread()
+            self._history = None  # "save last N s" must not splice old audio onto new
+            self._gen += 1
+            self._state, self._error = "paused", None
+
+    def resume(self) -> None:
+        with self._lock:
+            self._paused = False
+            self._save_paused()
+            if self._source is not None and self._reader is None:
+                self._launch_reader()
 
     def _stop_reader_thread(self) -> None:
         if self._reader is not None:
@@ -178,7 +225,8 @@ class LiveHub:
         gen = -1
         next_t = time.monotonic()
         while not self._closed.is_set():
-            next_t += period
+            # Paused: no analysis, just a once-a-second status frame for open pages.
+            next_t += 1.0 if self._paused else period
             delay = next_t - time.monotonic()
             if delay < -0.5:
                 next_t = time.monotonic()  # fell far behind; don't try to catch up
@@ -192,7 +240,9 @@ class LiveHub:
                     analyzer.reset_position()
                 continue
             frame: dict[str, Any]
-            if h is None or src is None or h.pos == 0:
+            if self._paused:
+                frame = {"seq": 0, "paused": True}
+            elif h is None or src is None or h.pos == 0:
                 frame = {"seq": 0, "idle": True}
             else:
                 if gen != self._gen or analyzer is None:
@@ -235,6 +285,8 @@ class LiveHub:
         with self._lock:
             if self._rec is not None:
                 raise LiveError("already recording")
+            if self._paused:
+                raise LiveError("live input is paused; resume it to record")
             h, src = self._history, self._source
             if h is None or src is None or self._state != "live":
                 raise LiveError("no live signal to record")
@@ -273,6 +325,8 @@ class LiveHub:
     def save_retro(self, seconds: float, name: str | None = None, notes: str | None = None) -> dict:
         with self._lock:
             h, src = self._history, self._source
+            if self._paused:
+                raise LiveError("live input is paused, so nothing is being kept")
             if h is None or src is None or h.pos == 0:
                 raise LiveError("nothing heard yet")
             pos = h.pos
@@ -303,7 +357,7 @@ class LiveHub:
         disk = self.store.disk()
         src = self._source
         bps = (src.sample_rate * len(src.channel_names) * 3) if src and src.channel_names else 288000
-        return {"source": self.source_status(), "recording": self.recording_status(),
+        return {"paused": self._paused, "source": self.source_status(), "recording": self.recording_status(),
                 "last_take": self._last_take,
                 "disk": disk | {"free_minutes": round(disk["free_bytes"] / bps / 60, 0)},
                 "fps": self.fps}
